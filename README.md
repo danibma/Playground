@@ -1,3 +1,3 @@
 # SkelEngine
 
-git clone https://github.com/zeux/niagara.git --recursive
+git clone https://github.com/dani9bma/SkelEngine.git --recursive
