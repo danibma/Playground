@@ -60,9 +60,9 @@
       <ConformanceMode>true</ConformanceMode>
     </ClCompile>
     <Link>
-      <SubSystem>Console</SubSystem>
+      <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>vulkan-1.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>vulkan-1.lib;d3d12.lib;dxgi.lib;d3dcompiler.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -346,6 +346,7 @@
     <ClInclude Include="external\glm\glm\vec3.hpp" />
     <ClInclude Include="external\glm\glm\vec4.hpp" />
     <ClInclude Include="external\glm\glm\vector_relational.hpp" />
+    <ClInclude Include="src\d3dx12.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="external\glfw\src\glfw.rc.in" />
@@ -487,6 +488,8 @@
     <None Include="external\glm\glm\gtx\vector_angle.inl" />
     <None Include="external\glm\glm\gtx\vector_query.inl" />
     <None Include="external\glm\glm\gtx\wrap.inl" />
+    <None Include="src\shaders\triangle.frag.glsl" />
+    <None Include="src\shaders\triangle.vert.glsl" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="external\glfw\src\context.c" />
@@ -505,7 +508,14 @@
     <ClCompile Include="external\glfw\src\win32_window.c" />
     <ClCompile Include="external\glfw\src\window.c" />
     <ClCompile Include="external\glm\glm\detail\glm.cpp" />
-    <ClCompile Include="src\main.cpp" />
+    <ClCompile Include="src\dxmain.cpp" />
+    <ClCompile Include="src\vkmain.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <FxCompile Include="src\shaders\triangle.hlsl">
+      <EntryPointName Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">VSMain</EntryPointName>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Vertex</ShaderType>
+    </FxCompile>
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

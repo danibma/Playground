@@ -13,6 +13,9 @@
     <Filter Include="src">
       <UniqueIdentifier>{76089777-79ac-4aff-b580-d23fd687b280}</UniqueIdentifier>
     </Filter>
+    <Filter Include="src\shaders">
+      <UniqueIdentifier>{1890f32e-e26d-442b-bc3a-e63152dc8b62}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="external\glfw\src\internal.h">
@@ -804,6 +807,7 @@
     <ClInclude Include="external\glfw\include\GLFW\glfw3native.h">
       <Filter>external\glfw</Filter>
     </ClInclude>
+    <ClInclude Include="src\d3dx12.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="external\glfw\src\glfw.rc.in">
@@ -1223,6 +1227,12 @@
     <None Include="external\glfw\src\mappings.h.in">
       <Filter>external\glfw</Filter>
     </None>
+    <None Include="src\shaders\triangle.frag.glsl">
+      <Filter>src\shaders</Filter>
+    </None>
+    <None Include="src\shaders\triangle.vert.glsl">
+      <Filter>src\shaders</Filter>
+    </None>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="external\glfw\src\context.c">
@@ -1273,8 +1283,10 @@
     <ClCompile Include="external\glm\glm\detail\glm.cpp">
       <Filter>external\glm</Filter>
     </ClCompile>
-    <ClCompile Include="src\main.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
+    <ClCompile Include="src\dxmain.cpp" />
+    <ClCompile Include="src\vkmain.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <FxCompile Include="src\shaders\triangle.hlsl" />
   </ItemGroup>
 </Project>
