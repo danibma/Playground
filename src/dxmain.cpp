@@ -14,8 +14,9 @@
 
 
 // Globals
-int width = 1280;
-int height = 720;
+float width = 1280.0f;
+float height = 720.0f;
+float aspectRatio = width / height;
 
 int frameIndex;
 
@@ -32,6 +33,10 @@ std::vector<ID3D12Resource*> renderTargets(2);
 std::vector<ID3D12CommandAllocator*> commandAllocators(2);
 ID3D12RootSignature* rootSignature;
 ID3D12PipelineState* pipelineState;
+/*
+	Submitting work to command lists doesn’t start any work on the GPU
+	Calls to ExecuteCommadList() finally do start work on the GPU
+*/
 ID3D12GraphicsCommandList* commandList;
 ID3D12Resource* vertexBuffer;
 D3D12_VERTEX_BUFFER_VIEW vertexBufferView;
@@ -40,7 +45,7 @@ int fenceValues[2];
 HANDLE fenceEvent;
 
 D3D12_VIEWPORT viewport = { 0, 0, width, height };
-D3D12_RECT scissor = { 0, 0, width, height };
+D3D12_RECT scissor = { 0, 0, (LONG)width, (LONG)height };
 
 #define FAILED(hr)      (((HRESULT)(hr)) < 0)
 
@@ -141,8 +146,8 @@ void Init(HWND hwnd)
 
 	// Create the swap chain
 	DXGI_SWAP_CHAIN_DESC1 swapChainDesc = {};
-	swapChainDesc.Width = width; 
-	swapChainDesc.Height = height;
+	swapChainDesc.Width = (unsigned int)width; 
+	swapChainDesc.Height = (unsigned int)height;
 	swapChainDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
 	swapChainDesc.SampleDesc.Count = 1; // Multisampling
 	swapChainDesc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
@@ -181,15 +186,14 @@ void Init(HWND hwnd)
 
 	// Create frame resources
 	{
-		D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle = rtvHeap->GetCPUDescriptorHandleForHeapStart();
+		CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle(rtvHeap->GetCPUDescriptorHandleForHeapStart());
 
 		// Create a RTV and a command allocator for each frame/buffer
 		for (int i = 0; i < frameCount; i++)
 		{
 			Check(swapChain->GetBuffer(i, IID_PPV_ARGS(&renderTargets[i])));
 			device->CreateRenderTargetView(renderTargets[i], nullptr, rtvHandle);
-			// Create a method to offset this
-			rtvHandle.ptr += INT64(1) * UINT64(rtvDescriptorSize);
+			rtvHandle.Offset(1, rtvDescriptorSize);
 
 			Check(device->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&commandAllocators[i])));
 		}
@@ -221,6 +225,8 @@ void Init(HWND hwnd)
 		unsigned int compilerFlags = 0;
 #endif
 
+		compilerFlags |= D3DCOMPILE_ALL_RESOURCES_BOUND;
+
 		ID3DBlob* errorMsgs;
 		Check(D3DCompileFromFile(L"src/shaders/triangle.hlsl", nullptr, nullptr, "VSMain", "vs_5_0", compilerFlags, 0, &VS, &errorMsgs));
 		if (errorMsgs)
@@ -251,7 +257,7 @@ void Init(HWND hwnd)
 		D3D12_INPUT_ELEMENT_DESC inputElementDescs[] =
 		{
 			{ "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
-			{ "COLOR", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 12, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0}
+			{ "COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 12, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0}
 		};
 
 		D3D12_GRAPHICS_PIPELINE_STATE_DESC pipelineDesc = {};
@@ -279,7 +285,6 @@ void Init(HWND hwnd)
 
 	// Create a vertex buffer
 	{
-		float aspectRatio = 16 / 9;
 		Vertex triangleVertices[] =
 		{
 			{ { 0.0f, 0.25f * aspectRatio, 0.0f }, { 1.0f, 0.0f, 0.0f, 1.0f } },
@@ -306,8 +311,8 @@ void Init(HWND hwnd)
 		// Copy the triangle data to the vertex buffer
 		unsigned char* vertexDataBegin;
 		CD3DX12_RANGE readRange(0, 0); // We do not intend to read from this resource on the CPU.
-		Check(vertexBuffer->Map(0, &readRange, reinterpret_cast<void**>(&vertexDataBegin)));
-		memcpy(vertexDataBegin, &triangleVertices, sizeof(triangleVertices));
+		Check(vertexBuffer->Map(0, &readRange, (void**)&vertexDataBegin));
+		memcpy(vertexDataBegin, triangleVertices, sizeof(triangleVertices));
 		vertexBuffer->Unmap(0, nullptr);
 
 		// Initialize Vertex Buffer View
@@ -340,6 +345,11 @@ void PopulateCommandList()
 	// Command list allocators can only be reseted when the associated
 	// commands lists have finished execution on the GPU, apps sound use
 	// fences to determine GPU execution progress.
+
+	/*
+		Call Allocator::Reset before reusing it in another frame
+			Otherwise the allocator will keep on growing until you’ll run out of memory
+	*/
 	Check(commandAllocators[frameIndex]->Reset());
 
 	// However, when ExecuteCommandsList() is called on a particular command
@@ -353,7 +363,10 @@ void PopulateCommandList()
 	commandList->RSSetScissorRects(1, &scissor);
 
 	// Indicate that the back buffer will be used as a render target
-	commandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(renderTargets[frameIndex], D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET));
+	commandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(
+										renderTargets[frameIndex], 
+										D3D12_RESOURCE_STATE_PRESENT, 
+										D3D12_RESOURCE_STATE_RENDER_TARGET));
 
 
 	CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle(rtvHeap->GetCPUDescriptorHandleForHeapStart(), frameIndex, rtvDescriptorSize);
@@ -367,7 +380,10 @@ void PopulateCommandList()
 	commandList->DrawInstanced(3, 1, 0, 0);
 
 	// Indicate that the back buffer will now be used to present
-	commandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(renderTargets[frameIndex], D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT));
+	commandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(
+											renderTargets[frameIndex],
+											D3D12_RESOURCE_STATE_RENDER_TARGET, 
+											D3D12_RESOURCE_STATE_PRESENT));
 
 	Check(commandList->Close());
 }
@@ -389,7 +405,7 @@ void MoveToNextFrame()
 	}
 
 	// Set the fence value for the next frame
-	fenceValues[frameIndex] = currentFenceValue + 1;
+	fenceValues[frameIndex] = (int)currentFenceValue + 1;
 }
 
 void Render() 
@@ -445,7 +461,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int nCmdShow)
 	windowClass.lpszClassName = L"DXSampleClass";
 	RegisterClassEx(&windowClass);
 
-	RECT windowRect = { 0, 0, width, height };
+	RECT windowRect = { 0, 0, (LONG)width, (LONG)height };
 	AdjustWindowRect(&windowRect, WS_OVERLAPPEDWINDOW, FALSE);
 
 	// Create the window and store a handle to it.

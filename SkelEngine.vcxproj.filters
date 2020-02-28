@@ -807,7 +807,9 @@
     <ClInclude Include="external\glfw\include\GLFW\glfw3native.h">
       <Filter>external\glfw</Filter>
     </ClInclude>
-    <ClInclude Include="src\d3dx12.h" />
+    <ClInclude Include="src\d3dx12.h">
+      <Filter>src</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="external\glfw\src\glfw.rc.in">
@@ -1283,10 +1285,16 @@
     <ClCompile Include="external\glm\glm\detail\glm.cpp">
       <Filter>external\glm</Filter>
     </ClCompile>
-    <ClCompile Include="src\dxmain.cpp" />
-    <ClCompile Include="src\vkmain.cpp" />
+    <ClCompile Include="src\dxmain.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\vkmain.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <FxCompile Include="src\shaders\triangle.hlsl" />
+    <FxCompile Include="src\shaders\triangle.hlsl">
+      <Filter>src\shaders</Filter>
+    </FxCompile>
   </ItemGroup>
 </Project>
