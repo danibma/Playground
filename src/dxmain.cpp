@@ -29,14 +29,14 @@ IDXGISwapChain3* swapChain;
 ID3D12DescriptorHeap* rtvHeap;
 unsigned int rtvDescriptorSize;
 std::vector<ID3D12Resource*> renderTargets(2);
-ID3D12CommandAllocator* commandAllocator;
+std::vector<ID3D12CommandAllocator*> commandAllocators(2);
 ID3D12RootSignature* rootSignature;
 ID3D12PipelineState* pipelineState;
 ID3D12GraphicsCommandList* commandList;
 ID3D12Resource* vertexBuffer;
 D3D12_VERTEX_BUFFER_VIEW vertexBufferView;
 ID3D12Fence* fence;
-int fenceValue;
+int fenceValues[2];
 HANDLE fenceEvent;
 
 D3D12_VIEWPORT viewport = { 0, 0, width, height };
@@ -58,22 +58,17 @@ inline void Check(HRESULT hr)
 	assert(!FAILED(hr));
 }
 
-void WaitForPreviousFrame()
+void WaitForGPU()
 {
-	// WAITING FOR THE FRAME TO COMPLETE BEFORE CONTINUING IS NOT BEST PRACTICE
-	// This is code implemented as such for simplicity. Check D3D12HelloFrameBuffering to see the best way
-	unsigned int currentFence = fenceValue;
-	Check(commandQueue->Signal(fence, currentFence));
-	fenceValue++;
+	// Schedule a Signal in the queue
+	Check(commandQueue->Signal(fence, fenceValues[frameIndex]));
 
-	// Wait until the previous frame is finished
-	if (fence->GetCompletedValue() < currentFence)
-	{
-		fence->SetEventOnCompletion(currentFence, fenceEvent);
-		WaitForSingleObject(fenceEvent, INFINITE);
-	}
+	// Wait until the fence has been processed
+	Check(fence->SetEventOnCompletion(fenceValues[frameIndex], fenceEvent));
+	WaitForSingleObjectEx(fenceEvent, INFINITE, false);
 
-	frameIndex = swapChain->GetCurrentBackBufferIndex();
+	// Increment the fence value for the current frame
+	fenceValues[frameIndex]++;
 }
 
 void Init(HWND hwnd)
@@ -152,7 +147,7 @@ void Init(HWND hwnd)
 	swapChainDesc.SampleDesc.Count = 1; // Multisampling
 	swapChainDesc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
 	swapChainDesc.BufferCount = frameCount; // Double buffer
-	swapChainDesc.Scaling = DXGI_SCALING_NONE;
+	swapChainDesc.Scaling = DXGI_SCALING_STRETCH;
 	swapChainDesc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
 
 	// NOTE: Probably need to destroy this so it doesnt count to the ref count
@@ -188,17 +183,18 @@ void Init(HWND hwnd)
 	{
 		D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle = rtvHeap->GetCPUDescriptorHandleForHeapStart();
 
-		// Create a RTV for each frame/buffer
+		// Create a RTV and a command allocator for each frame/buffer
 		for (int i = 0; i < frameCount; i++)
 		{
 			Check(swapChain->GetBuffer(i, IID_PPV_ARGS(&renderTargets[i])));
 			device->CreateRenderTargetView(renderTargets[i], nullptr, rtvHandle);
 			// Create a method to offset this
 			rtvHandle.ptr += INT64(1) * UINT64(rtvDescriptorSize);
+
+			Check(device->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&commandAllocators[i])));
 		}
 	}
 
-	Check(device->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&commandAllocator)));
 
 	// Load Assets(Shaders, etc.)
 
@@ -275,7 +271,7 @@ void Init(HWND hwnd)
 		Check(device->CreateGraphicsPipelineState(&pipelineDesc, IID_PPV_ARGS(&pipelineState)));
 	}
 
-	Check(device->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, commandAllocator, pipelineState, IID_PPV_ARGS(&commandList)));
+	Check(device->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, commandAllocators[frameIndex], pipelineState, IID_PPV_ARGS(&commandList)));
 
 	// Commands lists are created in the record state, but there is nothing
 	// to record yet. The main loop expects it to be closed, so close it now.
@@ -297,6 +293,7 @@ void Init(HWND hwnd)
 		// recommend. Every time the GPU needs it, the upload heap will be marshalled
 		// over. Please read up on Default heap usage. An upload heap is used here for 
 		// code simplicity and because there are very few verts to actually transfer.
+		// TODO: This ^
 
 		Check(device->CreateCommittedResource(
 			&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD),
@@ -321,8 +318,8 @@ void Init(HWND hwnd)
 
 	// Create Syncronization objects and wait until assets have been uploaded to the GPU
 	{
-		Check(device->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&fence)));
-		fenceValue = 1;
+		Check(device->CreateFence(fenceValues[frameIndex], D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&fence)));
+		fenceValues[frameIndex]++;
 
 		// Create an event handle to use for frame syncronization
 		fenceEvent = CreateEvent(nullptr, false, false, nullptr);
@@ -334,7 +331,7 @@ void Init(HWND hwnd)
 		// Wait for the command list to execute, we are resuing the same
 		// command list in our main loop, but for now, we just want to wait for setup to
 		// complete before continuing
-		WaitForPreviousFrame();
+		WaitForGPU();
 	}
 }
 
@@ -343,12 +340,12 @@ void PopulateCommandList()
 	// Command list allocators can only be reseted when the associated
 	// commands lists have finished execution on the GPU, apps sound use
 	// fences to determine GPU execution progress.
-	commandAllocator->Reset();
+	Check(commandAllocators[frameIndex]->Reset());
 
 	// However, when ExecuteCommandsList() is called on a particular command
 	// list, that command list can then be reseted at any time and must be before
 	// re-recording
-	commandList->Reset(commandAllocator, pipelineState);
+	Check(commandList->Reset(commandAllocators[frameIndex], pipelineState));
 
 	// Set necessary state.
 	commandList->SetGraphicsRootSignature(rootSignature);
@@ -372,7 +369,27 @@ void PopulateCommandList()
 	// Indicate that the back buffer will now be used to present
 	commandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(renderTargets[frameIndex], D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT));
 
-	commandList->Close();
+	Check(commandList->Close());
+}
+
+void MoveToNextFrame()
+{
+	// Schedule a Signal command in the queue
+	const unsigned long long currentFenceValue = fenceValues[frameIndex];
+	Check(commandQueue->Signal(fence, currentFenceValue));
+
+	// Update the frame index
+	frameIndex = swapChain->GetCurrentBackBufferIndex();
+
+	// If the next frame is not ready to be rendered yet, wait until it is ready
+	if (fence->GetCompletedValue() < fenceValues[frameIndex])
+	{
+		Check(fence->SetEventOnCompletion(fenceValues[frameIndex], fenceEvent));
+		WaitForSingleObjectEx(fenceEvent, INFINITE, false);
+	}
+
+	// Set the fence value for the next frame
+	fenceValues[frameIndex] = currentFenceValue + 1;
 }
 
 void Render() 
@@ -387,14 +404,14 @@ void Render()
 	// Present the frame
 	swapChain->Present(1, 0); // I think this has something to do with v-sync too
 
-	WaitForPreviousFrame();
+	MoveToNextFrame();
 }
 
 void Destroy()
 {
 	// Ensure that the GPU is no longer referencing resources that are about to be
 	// cleaned up by the destructor.
-	WaitForPreviousFrame();
+	WaitForGPU();
 
 	CloseHandle(fenceEvent);
 }
