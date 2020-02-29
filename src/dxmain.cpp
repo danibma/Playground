@@ -39,6 +39,7 @@ ID3D12PipelineState* pipelineState;
 */
 ID3D12GraphicsCommandList* commandList;
 ID3D12Resource* vertexBuffer;
+ID3D12Resource* vertexBufferUpload;
 D3D12_VERTEX_BUFFER_VIEW vertexBufferView;
 ID3D12Fence* fence;
 int fenceValues[2];
@@ -279,10 +280,6 @@ void Init(HWND hwnd)
 
 	Check(device->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, commandAllocators[frameIndex], pipelineState, IID_PPV_ARGS(&commandList)));
 
-	// Commands lists are created in the record state, but there is nothing
-	// to record yet. The main loop expects it to be closed, so close it now.
-	commandList->Close();
-
 	// Create a vertex buffer
 	{
 		Vertex triangleVertices[] =
@@ -298,28 +295,46 @@ void Init(HWND hwnd)
 		// recommend. Every time the GPU needs it, the upload heap will be marshalled
 		// over. Please read up on Default heap usage. An upload heap is used here for 
 		// code simplicity and because there are very few verts to actually transfer.
-		// TODO: This ^
+		// Note: Is not used here anymore, but I'm lefting this here anyway just to know
 
 		Check(device->CreateCommittedResource(
-			&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD),
+			&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT),
 			D3D12_HEAP_FLAG_NONE,
 			&CD3DX12_RESOURCE_DESC::Buffer(vertexBufferSize),
 			D3D12_RESOURCE_STATE_GENERIC_READ,
 			nullptr,
 			IID_PPV_ARGS(&vertexBuffer)));
 
-		// Copy the triangle data to the vertex buffer
-		unsigned char* vertexDataBegin;
-		CD3DX12_RANGE readRange(0, 0); // We do not intend to read from this resource on the CPU.
-		Check(vertexBuffer->Map(0, &readRange, (void**)&vertexDataBegin));
-		memcpy(vertexDataBegin, triangleVertices, sizeof(triangleVertices));
-		vertexBuffer->Unmap(0, nullptr);
+		{
+			Check(device->CreateCommittedResource(
+				&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD),
+				D3D12_HEAP_FLAG_NONE,
+				&CD3DX12_RESOURCE_DESC::Buffer(vertexBufferSize),
+				D3D12_RESOURCE_STATE_GENERIC_READ,
+				nullptr,
+				IID_PPV_ARGS(&vertexBufferUpload)));
 
+			// Copy data to the upload heap and then schedule a copy 
+			// from the upload heap to the vertex buffer.
+			D3D12_SUBRESOURCE_DATA vertexData = {};
+			vertexData.pData = triangleVertices;
+			vertexData.RowPitch = vertexBufferSize;
+			vertexData.SlicePitch = vertexData.RowPitch;
+
+			UpdateSubresources<1>(commandList, vertexBuffer, vertexBufferUpload, 0, 0, 1, &vertexData);
+			commandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(vertexBuffer, D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER));
+		}		
+		
 		// Initialize Vertex Buffer View
 		vertexBufferView.BufferLocation = vertexBuffer->GetGPUVirtualAddress();
 		vertexBufferView.StrideInBytes = sizeof(Vertex);
 		vertexBufferView.SizeInBytes = vertexBufferSize;
 	}
+
+	Check(commandList->Close());
+	ID3D12CommandList* commandLists[] = { commandList };
+	commandQueue->ExecuteCommandLists(_countof(commandLists), commandLists);
+
 
 	// Create Syncronization objects and wait until assets have been uploaded to the GPU
 	{
