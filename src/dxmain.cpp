@@ -1,4 +1,4 @@
-#if 1
+#if 0
 
 #include <stdio.h>
 
@@ -229,14 +229,14 @@ void Init(HWND hwnd)
 		compilerFlags |= D3DCOMPILE_ALL_RESOURCES_BOUND;
 
 		ID3DBlob* errorMsgs;
-		Check(D3DCompileFromFile(L"src/shaders/triangle.hlsl", nullptr, nullptr, "VSMain", "vs_5_0", compilerFlags, 0, &VS, &errorMsgs));
+		Check(D3DCompileFromFile(L"src/shaders/triangle_dx12.hlsl", nullptr, nullptr, "VSMain", "vs_5_0", compilerFlags, 0, &VS, &errorMsgs));
 		if (errorMsgs)
 		{
 			OutputDebugStringA((char*)errorMsgs->GetBufferPointer());
 			ZeroMemory(errorMsgs, sizeof(errorMsgs));
 		}
 
-		Check(D3DCompileFromFile(L"src/shaders/triangle.hlsl", nullptr, nullptr, "PSMain", "ps_5_0", compilerFlags, 0, &PS, &errorMsgs));
+		Check(D3DCompileFromFile(L"src/shaders/triangle_dx12.hlsl", nullptr, nullptr, "PSMain", "ps_5_0", compilerFlags, 0, &PS, &errorMsgs));
 		if (errorMsgs)
 		{
 			OutputDebugStringA((char*)errorMsgs->GetBufferPointer());
@@ -482,7 +482,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int nCmdShow)
 	// Create the window and store a handle to it.
 	HWND hwnd = CreateWindow(
 		windowClass.lpszClassName,
-		L"Skel Engine",
+		L"DirectX 12",
 		WS_OVERLAPPEDWINDOW,
 		CW_USEDEFAULT,
 		CW_USEDEFAULT,

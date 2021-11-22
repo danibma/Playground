@@ -395,7 +395,7 @@ int main()
 	uint32_t familyIndex = GetGraphicsQueueFamily(physicalDevice);
 	VkDevice device = CreateDevice(instance, physicalDevice, familyIndex);
 
-	GLFWwindow* window = glfwCreateWindow(WIDTH, HEIGHT, "Skel Engine", 0, 0);
+	GLFWwindow* window = glfwCreateWindow(WIDTH, HEIGHT, "Vulkan", 0, 0);
 	assert(window);
 
 	VkSurfaceKHR surface = CreateSurface(window, instance);
