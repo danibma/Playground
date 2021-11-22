@@ -9,51 +9,6 @@
     </FxCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="external\glfw\src\context.c">
-      <Filter>external\glfw</Filter>
-    </ClCompile>
-    <ClCompile Include="external\glfw\src\egl_context.c">
-      <Filter>external\glfw</Filter>
-    </ClCompile>
-    <ClCompile Include="external\glfw\src\init.c">
-      <Filter>external\glfw</Filter>
-    </ClCompile>
-    <ClCompile Include="external\glfw\src\input.c">
-      <Filter>external\glfw</Filter>
-    </ClCompile>
-    <ClCompile Include="external\glfw\src\monitor.c">
-      <Filter>external\glfw</Filter>
-    </ClCompile>
-    <ClCompile Include="external\glfw\src\osmesa_context.c">
-      <Filter>external\glfw</Filter>
-    </ClCompile>
-    <ClCompile Include="external\glfw\src\vulkan.c">
-      <Filter>external\glfw</Filter>
-    </ClCompile>
-    <ClCompile Include="external\glfw\src\wgl_context.c">
-      <Filter>external\glfw</Filter>
-    </ClCompile>
-    <ClCompile Include="external\glfw\src\win32_init.c">
-      <Filter>external\glfw</Filter>
-    </ClCompile>
-    <ClCompile Include="external\glfw\src\win32_joystick.c">
-      <Filter>external\glfw</Filter>
-    </ClCompile>
-    <ClCompile Include="external\glfw\src\win32_monitor.c">
-      <Filter>external\glfw</Filter>
-    </ClCompile>
-    <ClCompile Include="external\glfw\src\win32_thread.c">
-      <Filter>external\glfw</Filter>
-    </ClCompile>
-    <ClCompile Include="external\glfw\src\win32_time.c">
-      <Filter>external\glfw</Filter>
-    </ClCompile>
-    <ClCompile Include="external\glfw\src\win32_window.c">
-      <Filter>external\glfw</Filter>
-    </ClCompile>
-    <ClCompile Include="external\glfw\src\window.c">
-      <Filter>external\glfw</Filter>
-    </ClCompile>
     <ClCompile Include="src\dx11main.cpp">
       <Filter>src</Filter>
     </ClCompile>
@@ -68,34 +23,10 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="src\d3dx12.h">
-      <Filter>external\glfw</Filter>
-    </ClInclude>
-    <ClInclude Include="external\glfw\src\egl_context.h">
-      <Filter>external\glfw</Filter>
-    </ClInclude>
     <ClInclude Include="external\glfw\include\GLFW\glfw3.h">
       <Filter>external\glfw</Filter>
     </ClInclude>
     <ClInclude Include="external\glfw\include\GLFW\glfw3native.h">
-      <Filter>external\glfw</Filter>
-    </ClInclude>
-    <ClInclude Include="external\glfw\src\internal.h">
-      <Filter>external\glfw</Filter>
-    </ClInclude>
-    <ClInclude Include="external\glfw\src\mappings.h">
-      <Filter>external\glfw</Filter>
-    </ClInclude>
-    <ClInclude Include="external\glfw\src\osmesa_context.h">
-      <Filter>external\glfw</Filter>
-    </ClInclude>
-    <ClInclude Include="external\glfw\src\wgl_context.h">
-      <Filter>external\glfw</Filter>
-    </ClInclude>
-    <ClInclude Include="external\glfw\src\win32_joystick.h">
-      <Filter>external\glfw</Filter>
-    </ClInclude>
-    <ClInclude Include="external\glfw\src\win32_platform.h">
       <Filter>external\glfw</Filter>
     </ClInclude>
     <ClInclude Include="external\glm\glm\detail\_features.hpp">
@@ -865,15 +796,6 @@
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <None Include="external\glfw\src\glfw.rc.in">
-      <Filter>external\glfw</Filter>
-    </None>
-    <None Include="external\glfw\src\glfw_config.h.in">
-      <Filter>external\glfw</Filter>
-    </None>
-    <None Include="external\glfw\src\mappings.h.in">
-      <Filter>external\glfw</Filter>
-    </None>
     <None Include="src\shaders\triangle.frag.glsl">
       <Filter>src\shaders</Filter>
     </None>
