@@ -33,6 +33,13 @@ VS_Output vs_main(VS_Input input)
 
 float4 ps_main(VS_Output input) : SV_TARGET
 {
+	float3 ambientLightColor = float3(1.0f, 1.0f, 1.0f);
+	float ambientLightStrength = 0.3f;
+
+	float4 sampleColor = tex.Sample(samplerState, input.tex);
+
+	float3 ambientLight = ambientLightColor * ambientLightStrength;
+
 	//return tex.Sample(samplerState, input.tex) * input.color;
-	return tex.Sample(samplerState, input.tex) * float4(1, 1, 1, 1);
+	return float4(sampleColor * ambientLight, 1.0);
 }

@@ -1,0 +1,1 @@
+%VULKAN_SDK%\Bin\dxc.exe -spirv -T vs_6_0 -E vs_main shader_dx11.hlsl -Fo test.spv

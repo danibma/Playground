@@ -1,4 +1,4 @@
-#if 1
+#if 0
 
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
@@ -657,7 +657,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 			viewMat = XMMatrixLookAtLH(cameraPos, cameraPos + cameraFront, cameraUp);
 
 			// Spin the quad
-			modelMat = XMMatrixRotationY(t);
+			modelMat = XMMatrixIdentity;
 
 			// Copy model-view-projection matrix to uniform buffer
 			XMMATRIX modelViewProj = XMMatrixTranspose(perspectiveMatrix) * XMMatrixTranspose(viewMat) * XMMatrixTranspose(modelMat);

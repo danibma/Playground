@@ -7,6 +7,9 @@
     <FxCompile Include="src\shaders\triangle_dx12.hlsl">
       <Filter>src\shaders</Filter>
     </FxCompile>
+    <FxCompile Include="src\shaders\simple_scene.hlsl">
+      <Filter>src\shaders</Filter>
+    </FxCompile>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\dx11main.cpp">
@@ -20,6 +23,9 @@
     </ClCompile>
     <ClCompile Include="external\glm\glm\detail\glm.cpp">
       <Filter>external\glm</Filter>
+    </ClCompile>
+    <ClCompile Include="src\SimpleScene.cpp">
+      <Filter>src</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -1227,5 +1233,8 @@
     <Filter Include="src\shaders">
       <UniqueIdentifier>{6877b8cb-8f75-48ec-b05c-3d13fe657867}</UniqueIdentifier>
     </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <Text Include="TODO.md" />
   </ItemGroup>
 </Project>
