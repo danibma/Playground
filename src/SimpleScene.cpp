@@ -210,32 +210,64 @@ void InitializeD3D11(HWND hwnd)
 							{ { 0.25f, -0.25f * aspectRatio, 0.0f }, { 0.0f, 1.0f, 0.0f } },
 							{ { -0.25f, -0.25f * aspectRatio, 0.0f }, { 0.0f, 0.0f, 1.0f } } };*/
 
+	/*float vertexData[] = {
+		// x, y, z | u, v
+		-1.0f,  1.0f, -1.0f, 1.0f, 0.0f,
+		 1.0f,  1.0f, -1.0f, 0.0f, 0.0f,
+		 1.0f,  1.0f,  1.0f, 0.0f, 1.0f,
+		-1.0f,  1.0f,  1.0f, 1.0f, 1.0f,
+		-1.0f, -1.0f, -1.0f, 0.0f, 0.0f,
+		 1.0f, -1.0f, -1.0f, 1.0f, 0.0f,
+		 1.0f, -1.0f,  1.0f, 1.0f, 1.0f,
+		-1.0f, -1.0f,  1.0f, 0.0f, 1.0f,
+		-1.0f, -1.0f,  1.0f, 0.0f, 1.0f,
+		-1.0f, -1.0f, -1.0f, 1.0f, 1.0f,
+		-1.0f,  1.0f, -1.0f, 1.0f, 0.0f,
+		-1.0f,  1.0f,  1.0f, 0.0f, 0.0f,
+		 1.0f, -1.0f,  1.0f, 1.0f, 1.0f,
+		 1.0f, -1.0f, -1.0f, 0.0f, 1.0f,
+		 1.0f,  1.0f, -1.0f, 0.0f, 0.0f,
+		 1.0f,  1.0f,  1.0f, 1.0f, 0.0f,
+		-1.0f, -1.0f, -1.0f, 0.0f, 1.0f,
+		 1.0f, -1.0f, -1.0f, 1.0f, 1.0f,
+		 1.0f,  1.0f, -1.0f, 1.0f, 0.0f,
+		-1.0f,  1.0f, -1.0f, 0.0f, 0.0f,
+		-1.0f, -1.0f,  1.0f, 1.0f, 1.0f,
+		 1.0f, -1.0f,  1.0f, 0.0f, 1.0f,
+		 1.0f,  1.0f,  1.0f, 0.0f, 0.0f,
+		-1.0f,  1.0f,  1.0f, 1.0f, 0.0f,
+	};*/
+
 	float vertexData[] = {
-		// x, y, z | u, v | r, g, b
-		-1.0f,  1.0f, -1.0f, 1.0f, 0.0f, 0.0f, 0.5f, 1.0f,
-		 1.0f,  1.0f, -1.0f, 0.0f, 0.0f, 0.0f, 0.5f, 1.0f,
-		 1.0f,  1.0f,  1.0f, 0.0f, 1.0f, 0.0f, 0.5f, 1.0f,
-		-1.0f,  1.0f,  1.0f, 1.0f, 1.0f, 0.0f, 0.5f, 1.0f,
-		-1.0f, -1.0f, -1.0f, 0.0f, 0.0f, 0.0f, 0.5f, 1.0f,
-		 1.0f, -1.0f, -1.0f, 1.0f, 0.0f, 0.0f, 0.5f, 1.0f,
-		 1.0f, -1.0f,  1.0f, 1.0f, 1.0f, 0.0f, 0.5f, 1.0f,
-		-1.0f, -1.0f,  1.0f, 0.0f, 1.0f, 0.0f, 0.5f, 1.0f,
-		-1.0f, -1.0f,  1.0f, 0.0f, 1.0f, 0.0f, 0.5f, 1.0f,
-		-1.0f, -1.0f, -1.0f, 1.0f, 1.0f, 0.0f, 0.5f, 1.0f,
-		-1.0f,  1.0f, -1.0f, 1.0f, 0.0f, 0.0f, 0.5f, 1.0f,
-		-1.0f,  1.0f,  1.0f, 0.0f, 0.0f, 0.0f, 0.5f, 1.0f,
-		 1.0f, -1.0f,  1.0f, 1.0f, 1.0f, 0.0f, 0.5f, 1.0f,
-		 1.0f, -1.0f, -1.0f, 0.0f, 1.0f, 0.0f, 0.5f, 1.0f,
-		 1.0f,  1.0f, -1.0f, 0.0f, 0.0f, 0.0f, 0.5f, 1.0f,
-		 1.0f,  1.0f,  1.0f, 1.0f, 0.0f, 0.0f, 0.5f, 1.0f,
-		-1.0f, -1.0f, -1.0f, 0.0f, 1.0f, 0.0f, 0.5f, 1.0f,
-		 1.0f, -1.0f, -1.0f, 1.0f, 1.0f, 0.0f, 0.5f, 1.0f,
-		 1.0f,  1.0f, -1.0f, 1.0f, 0.0f, 0.0f, 0.5f, 1.0f,
-		-1.0f,  1.0f, -1.0f, 0.0f, 0.0f, 0.0f, 0.5f, 1.0f,
-		-1.0f, -1.0f,  1.0f, 1.0f, 1.0f, 0.0f, 0.5f, 1.0f,
-		 1.0f, -1.0f,  1.0f, 0.0f, 1.0f, 0.0f, 0.5f, 1.0f,
-		 1.0f,  1.0f,  1.0f, 0.0f, 0.0f, 0.0f, 0.5f, 1.0f,
-		-1.0f,  1.0f,  1.0f, 1.0f, 0.0f, 0.0f, 0.5f, 1.0f,
+		-1.0f, -1.0f, -1.0f, 0.0f, 1.0f, -1.0f, -1.0f, -1.0f,
+		-1.0f,  1.0f, -1.0f, 0.0f, 0.0f, -1.0f,  1.0f, -1.0f,
+		 1.0f,  1.0f, -1.0f, 1.0f, 0.0f,  1.0f,  1.0f, -1.0f,
+		 1.0f, -1.0f, -1.0f, 1.0f, 1.0f,  1.0f, -1.0f, -1.0f,
+
+		-1.0f, -1.0f, 1.0f, 1.0f, 1.0f, -1.0f, -1.0f, 1.0f,
+		 1.0f, -1.0f, 1.0f, 0.0f, 1.0f,  1.0f, -1.0f, 1.0f,
+		 1.0f,  1.0f, 1.0f, 0.0f, 0.0f,  1.0f,  1.0f, 1.0f,
+		-1.0f,  1.0f, 1.0f, 1.0f, 0.0f, -1.0f,  1.0f, 1.0f,
+
+		-1.0f, 1.0f, -1.0f, 0.0f, 1.0f, -1.0f, 1.0f, -1.0f,
+		-1.0f, 1.0f,  1.0f, 0.0f, 0.0f, -1.0f, 1.0f,  1.0f,
+		 1.0f, 1.0f,  1.0f, 1.0f, 0.0f,  1.0f, 1.0f,  1.0f,
+		 1.0f, 1.0f, -1.0f, 1.0f, 1.0f,  1.0f, 1.0f, -1.0f,
+
+		-1.0f, -1.0f, -1.0f, 1.0f, 1.0f, -1.0f, -1.0f, -1.0f,
+		 1.0f, -1.0f, -1.0f, 0.0f, 1.0f,  1.0f, -1.0f, -1.0f,
+		 1.0f, -1.0f,  1.0f, 0.0f, 0.0f,  1.0f, -1.0f,  1.0f,
+		-1.0f, -1.0f,  1.0f, 1.0f, 0.0f, -1.0f, -1.0f,  1.0f,
+
+		-1.0f, -1.0f,  1.0f, 0.0f, 1.0f, -1.0f, -1.0f,  1.0f,
+		-1.0f,  1.0f,  1.0f, 0.0f, 0.0f, -1.0f,  1.0f,  1.0f,
+		-1.0f,  1.0f, -1.0f, 1.0f, 0.0f, -1.0f,  1.0f, -1.0f,
+		-1.0f, -1.0f, -1.0f, 1.0f, 1.0f, -1.0f, -1.0f, -1.0f,
+
+		 1.0f, -1.0f, -1.0f, 0.0f, 1.0f,  1.0f, -1.0f, -1.0f,
+		 1.0f,  1.0f, -1.0f, 0.0f, 0.0f,  1.0f,  1.0f, -1.0f,
+		 1.0f,  1.0f,  1.0f, 1.0f, 0.0f,  1.0f,  1.0f,  1.0f,
+		 1.0f, -1.0f,  1.0f, 1.0f, 1.0f,  1.0f, -1.0f,  1.0f,
 	};
 
 	stride = 8 * sizeof(float);
@@ -253,23 +285,29 @@ void InitializeD3D11(HWND hwnd)
 
 	//uint32_t indexData[3] = { 0, 1, 2 };
 	uint32_t indexData[36] = {
-		3,1,0,
-		2,1,3,
+		// Front Face
+		0,  1,  2,
+		0,  2,  3,
 
-		6,4,5,
-		7,4,6,
+		// Back Face
+		4,  5,  6,
+		4,  6,  7,
 
-		11,9,8,
-		10,9,11,
+		// Top Face
+		8,  9, 10,
+		8, 10, 11,
 
-		14,12,13,
-		15,12,14,
+		// Bottom Face
+		12, 13, 14,
+		12, 14, 15,
 
-		19,17,16,
-		18,17,19,
+		// Left Face
+		16, 17, 18,
+		16, 18, 19,
 
-		22,20,21,
-		23,20,22
+		// Right Face
+		20, 21, 22,
+		20, 22, 23
 	};
 
 	D3D11_BUFFER_DESC indexBufferDesc = {};
@@ -399,7 +437,7 @@ void InitializeD3D11(HWND hwnd)
 	inputElements[1].InputSlotClass = D3D11_INPUT_PER_VERTEX_DATA;
 	inputElements[1].InstanceDataStepRate = 0;
 
-	inputElements[2].SemanticName = "COLOR";
+	inputElements[2].SemanticName = "NORMAL";
 	inputElements[2].SemanticIndex = 0;
 	inputElements[2].Format = DXGI_FORMAT_R32G32B32_FLOAT;
 	inputElements[2].AlignedByteOffset = D3D11_APPEND_ALIGNED_ELEMENT;
@@ -432,8 +470,6 @@ void Render(GLFWwindow* window)
 	float currentFrame = static_cast<float>(glfwGetTime());
 	deltaTime = currentFrame - lastFrame;
 	lastFrame = currentFrame;
-
-	std::cout << deltaTime * 1000.0f << std::endl;
 
 	if (glfwGetKey(window, GLFW_KEY_W))
 		cameraPos += cameraSpeed * cameraFront;
