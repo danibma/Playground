@@ -657,7 +657,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 			viewMat = XMMatrixLookAtLH(cameraPos, cameraPos + cameraFront, cameraUp);
 
 			// Spin the quad
-			modelMat = XMMatrixIdentity;
+			modelMat = XMMatrixRotationY(t);
 
 			// Copy model-view-projection matrix to uniform buffer
 			XMMATRIX modelViewProj = XMMatrixTranspose(perspectiveMatrix) * XMMatrixTranspose(viewMat) * XMMatrixTranspose(modelMat);
@@ -732,26 +732,12 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 			constants->modelViewProj = XMMatrixTranspose(modelViewProj);
 			deviceContext->Unmap(constantBuffer, 0);
 
-			//Set Input Layout
-			deviceContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-			deviceContext->IASetInputLayout(inputLayout);
-
-			//Set Shaders
-			deviceContext->VSSetShader(vertexShader, nullptr, 0);
-			deviceContext->PSSetShader(pixelShader, nullptr, 0);
-
 			//Set Shader Resource, "bind texture to shader"
 			deviceContext->PSSetShaderResources(0, 1, &textureView);
 			deviceContext->PSSetSamplers(0, 1, &samplerState);
 
 			//Set Constant Buffer
 			deviceContext->VSSetConstantBuffers(0, 1, &constantBuffer);
-
-			//Set Vertex Buffer
-			deviceContext->IASetVertexBuffers(0, 1, &vertexBuffer, &stride, &offset);
-
-			//Set Index Buffer
-			deviceContext->IASetIndexBuffer(ib, DXGI_FORMAT_R32_UINT, 0);
 
 			//Draw!
 			deviceContext->DrawIndexed(36, 0, 0);

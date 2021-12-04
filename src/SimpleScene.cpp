@@ -1,4 +1,4 @@
-#if 1
+#if 0
 
 #include <d3d11_1.h>
 #include <dxgi.h>
@@ -64,8 +64,13 @@ uint32_t offset;
 struct constantBufferVS
 {
 	glm::mat4 MVPMatrix;
+	glm::mat4 WorldMatrix;
+	glm::vec4 cameraPos;
+	glm::vec4 lightLocation;
 };
 constantBufferVS cbVS;
+
+glm::vec4 lightLocation(-5, 3, 0, 1);
 
 glm::vec3 cameraPos = { 0, 0, -5 };
 glm::vec3 cameraFront = { 0, 0, 1 };
@@ -75,6 +80,8 @@ glm::vec3 cameraUp = { 0, 1, 0 };
 glm::mat4 modelMatrix(1.0f);
 glm::mat4 viewMatrix(1.0f);
 glm::mat4 projectionMatrix(1.0f);
+
+glm::mat4 lightModelMatrix(1.0f);
 
 float fov = 84.0f;
 float deltaTime = 1.0f;
@@ -448,19 +455,21 @@ void InitializeD3D11(HWND hwnd)
 	device->CreateInputLayout(inputElements, ARRAYSIZE(inputElements), vertexShaderBlob->GetBufferPointer(), vertexShaderBlob->GetBufferSize(), &inputLayout);
 
 	viewMatrix = glm::lookAtLH(cameraPos, cameraPos + cameraFront, cameraUp);
-	projectionMatrix = glm::perspectiveFovLH_ZO(glm::radians(fov), WIDTH, HEIGHT, 0.1f, 10000.0f);;
+	projectionMatrix = glm::perspectiveFovLH_ZO(glm::radians(fov), WIDTH, HEIGHT, 0.1f, 10000.0f);
 	cbVS.MVPMatrix = projectionMatrix * viewMatrix * modelMatrix;
 	cbVS.MVPMatrix = glm::transpose(cbVS.MVPMatrix);
-
-	deviceContext->Map(constantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedResource);
-	memcpy(mappedResource.pData, &cbVS, sizeof(cbVS));
-	deviceContext->Unmap(constantBuffer, 0);
+	cbVS.cameraPos = glm::vec4(cameraPos, 1.0);
+	cbVS.lightLocation = lightLocation;
 
 	D3D11_RASTERIZER_DESC rasterizerDesc = {};
 	rasterizerDesc.FillMode = D3D11_FILL_SOLID;
 	rasterizerDesc.CullMode = D3D11_CULL_NONE;
 	rasterizerDesc.FrontCounterClockwise = true;
 	device->CreateRasterizerState(&rasterizerDesc, &rasterizerState);
+
+	lightModelMatrix = glm::translate(lightModelMatrix, glm::vec3(lightLocation.x, lightLocation.y, lightLocation.z));
+	lightModelMatrix = glm::scale(lightModelMatrix, glm::vec3(0.2f, 0.2f, 0.2f));
+	lightModelMatrix = glm::rotate(lightModelMatrix, 0.0f, glm::vec3(1.0f, 1.0f, 1.0f));
 }
 
 void Render(GLFWwindow* window)
@@ -509,25 +518,49 @@ void Render(GLFWwindow* window)
 	deviceContext->IASetInputLayout(inputLayout);
 
 	deviceContext->VSSetShader(vertexShader, nullptr, 0);
-	deviceContext->PSSetShader(pixelShader, nullptr, 0);
 
+	modelMatrix = glm::mat4(1.0f);
 	viewMatrix = glm::lookAtLH(cameraPos, cameraPos + cameraFront, cameraUp);
 	projectionMatrix = glm::perspectiveFovLH_ZO(glm::radians(fov), WIDTH, HEIGHT, 0.1f, 10000.0f);
 	cbVS.MVPMatrix = projectionMatrix * viewMatrix * modelMatrix;
 	cbVS.MVPMatrix = glm::transpose(cbVS.MVPMatrix);
+	cbVS.cameraPos = glm::vec4(cameraPos, 1.0);
+	cbVS.WorldMatrix = modelMatrix;
+
+	//lightLocation.x = 1.0f + sin(glfwGetTime()) * 2.0f;
+	//lightLocation.y = sin(glfwGetTime() / 2.0f) * 1.0f;
+	cbVS.lightLocation = lightLocation;
 
 	deviceContext->Map(constantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedResource);
 	memcpy(mappedResource.pData, &cbVS, sizeof(cbVS));
 	deviceContext->Unmap(constantBuffer, 0);
+	deviceContext->VSSetConstantBuffers(0, 1, &constantBuffer);
 
+	deviceContext->PSSetShader(pixelShader, nullptr, 0);
 	deviceContext->PSSetSamplers(0, 1, &samplerState);
 	deviceContext->PSSetShaderResources(0, 1, &textureView);
+	deviceContext->PSSetConstantBuffers(0, 1, &constantBuffer);
 
 	deviceContext->IASetVertexBuffers(0, 1, &vertexBuffer, &stride, &offset);
 
-	deviceContext->VSSetConstantBuffers(0, 1, &constantBuffer);
 
 	deviceContext->IASetIndexBuffer(indexBuffer, DXGI_FORMAT_R32_UINT, 0);
+
+	deviceContext->DrawIndexed(36, 0, 0);
+
+	// Light
+	lightModelMatrix = glm::mat4(1.0f);
+	lightModelMatrix = glm::translate(lightModelMatrix, glm::vec3(lightLocation.x, lightLocation.y, lightLocation.z));
+	lightModelMatrix = glm::scale(lightModelMatrix, glm::vec3(0.3f, 0.3f, 0.3f));
+	modelMatrix = lightModelMatrix;
+	cbVS.MVPMatrix = projectionMatrix * viewMatrix * modelMatrix;
+	cbVS.MVPMatrix = glm::transpose(cbVS.MVPMatrix);
+	cbVS.lightLocation = glm::vec4(0.0f, 0.0f, 0.0f, 1.0f);
+	cbVS.WorldMatrix = glm::mat4(0.0f);
+	deviceContext->Map(constantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedResource);
+	memcpy(mappedResource.pData, &cbVS, sizeof(cbVS));
+	deviceContext->Unmap(constantBuffer, 0);
+	deviceContext->VSSetConstantBuffers(0, 1, &constantBuffer);
 
 	deviceContext->DrawIndexed(36, 0, 0);
 
