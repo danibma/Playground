@@ -62,7 +62,7 @@
       <LanguageStandard>stdcpp17</LanguageStandard>
     </ClCompile>
     <Link>
-      <SubSystem>Console</SubSystem>
+      <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <AdditionalDependencies>glfw3.lib;dxguid.lib;d3d12.lib;dxgi.lib;d3dcompiler.lib;vulkan-1.lib;shaderc_shared.lib;shaderc_util.lib;spirv-cross-core.lib;spirv-cross-glsl.lib;SPIRV-Tools.lib;VkLayer_utils.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <DelayLoadDLLs>
@@ -517,11 +517,14 @@
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Vertex</ShaderType>
       <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">5.0</ShaderModel>
     </FxCompile>
-    <FxCompile Include="src\shaders\vulkan.hlsl">
+    <ClInclude Include="src\shaders\vulkan.hlsl">
       <EntryPointName Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">vs_main</EntryPointName>
-      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">5.0</ShaderModel>
-      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Vertex</ShaderType>
-    </FxCompile>
+      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+      </ShaderModel>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+      </ShaderType>
+      <FileType>Document</FileType>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Text Include="TODO.md" />

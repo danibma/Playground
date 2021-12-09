@@ -16,9 +16,6 @@
     <FxCompile Include="src\shaders\frag.hlsl">
       <Filter>src\shaders</Filter>
     </FxCompile>
-    <FxCompile Include="src\shaders\vulkan.hlsl">
-      <Filter>src\shaders</Filter>
-    </FxCompile>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\dx11main.cpp">
@@ -808,6 +805,9 @@
     </ClInclude>
     <ClInclude Include="external\stb_image.h">
       <Filter>external</Filter>
+    </ClInclude>
+    <ClInclude Include="src\shaders\vulkan.hlsl">
+      <Filter>src\shaders</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
