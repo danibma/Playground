@@ -111,7 +111,7 @@ struct MVP
 	glm::mat4 model;
 	glm::mat4 view;
 	glm::mat4 proj;
-}
+};
 
 struct UniformBufferObject
 {
@@ -1087,6 +1087,10 @@ int main()
 	while (!glfwWindowShouldClose(window))
 	{
 		glfwPollEvents();
+
+		if (glfwGetKey(window, GLFW_KEY_ESCAPE))
+			glfwSetWindowShouldClose(window, true);
+
 		Render(window);
 	}
 
