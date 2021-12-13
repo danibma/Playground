@@ -329,7 +329,7 @@ void InitializeD3D11(HWND hwnd)
 
 	//Load cube texture
 	int twidth, theight, tchannels;
-	unsigned char* textureBytes = stbi_load("src/assets/wall.jpg", &twidth, &theight, &tchannels, 4);
+	unsigned char* textureBytes = stbi_load("assets/wall.jpg", &twidth, &theight, &tchannels, 4);
 	if (!textureBytes)
 	{
 		MessageBoxA(nullptr, "Failed to load texture", "Error!", MB_OK);
