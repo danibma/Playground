@@ -32,6 +32,8 @@
 constexpr int width = 1600;
 constexpr int height = 900;
 
+constexpr uint32_t frame_overlap = 2;
+
 #define vkCheck(x)														\
 		{ VkResult err = x;												\
 		if (err)														\
@@ -76,10 +78,28 @@ struct Mesh
 	bool loadFromObj(const char* file);
 };
 
-struct MeshPushConstants 
+struct MeshPushConstants
 {
 	glm::vec4 data;
 	glm::mat4 renderMatrix;
+};
+
+struct GPUCameraData 
+{
+	glm::mat4 view;
+	glm::mat4 projection;
+	glm::mat4 viewproj;
+};
+
+struct FrameData {
+	VkSemaphore presentSemaphore, renderSemaphore;
+	VkFence renderFence;
+
+	VkCommandPool commandPool;
+	VkCommandBuffer mainCommandBuffer;
+
+	AllocatedBuffer cameraBuffer;
+	VkDescriptorSet globalDescriptor;
 };
 
 VkInstance instance; // Vulkan library handle
@@ -93,12 +113,8 @@ std::vector<VkImage> swapchainImages;
 std::vector<VkImageView> swapchainImageViews;
 VkQueue graphicsQueue; //queue we will submit to
 uint32_t graphicsQueueFamily; //family of that queue
-VkCommandPool commandPool; //the command pool for our commands
-VkCommandBuffer mainCommandBuffer; //the buffer we will record into
 VkRenderPass renderPass;
 std::vector<VkFramebuffer> framebuffers;
-VkSemaphore presentSemaphore, renderSemaphore;
-VkFence renderFence;
 uint32_t frameNumber;
 std::vector<VkPipelineShaderStageCreateInfo> shaderStages(2);
 VkViewport viewport;
@@ -114,11 +130,26 @@ Mesh monkeyMesh;
 VkImageView depthImageView;
 AllocatedImage depthImage;
 VkFormat depthFormat;
+FrameData frames[frame_overlap];
+VkDescriptorSetLayout globalSetLayout;
+VkDescriptorPool descriptorPool;
+
+constexpr FrameData& GetCurrentFrame()
+{
+	/*
+	 * Every time we render a frame, the frameNumber gets bumped by 1.
+	 * This will be very useful here. With a frame overlap of 2 (the default),
+	 * it means that even frames will use frames[0], while odd frames will use frames[1].
+	 * While the GPU is busy executing the rendering commands from frame 0,
+	 * the CPU will be writing the buffers of frame 1, and reverse.
+	*/
+	return frames[frameNumber % frame_overlap];
+}
 
 static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(
 	VkDebugUtilsMessageSeverityFlagBitsEXT           messageSeverity,
 	VkDebugUtilsMessageTypeFlagsEXT                  messageTypes,
-	const VkDebugUtilsMessengerCallbackDataEXT * pCallbackData,
+	const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData,
 	void* pUserData)
 {
 
@@ -129,7 +160,7 @@ static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(
 	else if (messageSeverity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT)
 	{
 		// NOTE: temporary fix because it shows a initial error because of a json in medal tv, idk why
-		if(!strstr(pCallbackData->pMessage, "medal"))
+		if (!strstr(pCallbackData->pMessage, "medal"))
 			std::cerr << "\033[1;31mError: " << pCallbackData->pMessageIdName << " : \033[0m" << pCallbackData->pMessage << std::endl;
 	}
 	else
@@ -331,13 +362,13 @@ void Init(GLFWwindow* window)
 	vkb::InstanceBuilder instanceBuilder;
 
 	auto instanceResult = instanceBuilder.set_app_name("Vulkan")
-								  .request_validation_layers(true)
-								  .require_api_version(1, 1, 0)
-								  .desire_api_version(1, 1, 0)
-								  .set_debug_messenger_severity(VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT)
-								  .set_debug_messenger_type(VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT)
-								  .set_debug_callback(debugCallback)
-								  .build();
+		.request_validation_layers(true)
+		.require_api_version(1, 1, 0)
+		.desire_api_version(1, 1, 0)
+		.set_debug_messenger_severity(VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT)
+		.set_debug_messenger_type(VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT)
+		.set_debug_callback(debugCallback)
+		.build();
 
 	vkb::Instance vkbInstance = instanceResult.value();
 
@@ -368,13 +399,13 @@ void Init(GLFWwindow* window)
 	// Init mesh
 	triangleMesh.vertices.resize(3);
 	triangleMesh.vertices[0].position = { 0.5f,  0.5f, 0.0f };
-	triangleMesh.vertices[1].position = {-0.5f,  0.5f, 0.0f };
+	triangleMesh.vertices[1].position = { -0.5f,  0.5f, 0.0f };
 	triangleMesh.vertices[2].position = { 0.0f, -0.5f, 0.0f };
 	triangleMesh.vertices[0].color = { 1.0f, 0.0f, 0.0f };
 	triangleMesh.vertices[1].color = { 0.0f, 1.0f, 0.0f };
 	triangleMesh.vertices[2].color = { 0.0f, 0.0f, 1.0f };
 
-	monkeyMesh.loadFromObj("assets/movel.obj");
+	monkeyMesh.loadFromObj("assets/monkey_smooth.obj");
 
 	// Upload mesh
 	VkBufferCreateInfo bufferInfo = {};
@@ -385,8 +416,8 @@ void Init(GLFWwindow* window)
 	VmaAllocationCreateInfo vmaAllocInfo = {};
 	vmaAllocInfo.usage = VMA_MEMORY_USAGE_CPU_TO_GPU;
 
-	vkCheck(vmaCreateBuffer(allocator, &bufferInfo, &vmaAllocInfo, 
-					&monkeyMesh.vertexBuffer.buffer, &monkeyMesh.vertexBuffer.allocation, nullptr));
+	vkCheck(vmaCreateBuffer(allocator, &bufferInfo, &vmaAllocInfo,
+							&monkeyMesh.vertexBuffer.buffer, &monkeyMesh.vertexBuffer.allocation, nullptr));
 
 	void* data;
 	vmaMapMemory(allocator, monkeyMesh.vertexBuffer.allocation, &data);
@@ -397,10 +428,10 @@ void Init(GLFWwindow* window)
 	// Init swapchain
 	vkb::SwapchainBuilder swapchainBuilder{ physicalDevice, device, surface };
 	vkb::Swapchain vkbSwapchain = swapchainBuilder.use_default_format_selection()
-											.set_desired_present_mode(VK_PRESENT_MODE_FIFO_KHR)
-											.set_desired_extent(width, height)
-											.build()
-											.value();
+		.set_desired_present_mode(VK_PRESENT_MODE_FIFO_KHR)
+		.set_desired_extent(width, height)
+		.build()
+		.value();
 
 	swapchain = vkbSwapchain.swapchain;
 	swapchainImages = vkbSwapchain.get_images().value();
@@ -432,16 +463,17 @@ void Init(GLFWwindow* window)
 	commandPoolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
 	commandPoolInfo.queueFamilyIndex = graphicsQueueFamily;
 	commandPoolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
+	for (int i = 0; i < frame_overlap; i++)
+	{
+		vkCheck(vkCreateCommandPool(device, &commandPoolInfo, nullptr, &frames[i].commandPool));
+		VkCommandBufferAllocateInfo commandBufferInfo = {};
+		commandBufferInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+		commandBufferInfo.commandBufferCount = 1;
+		commandBufferInfo.commandPool = frames[i].commandPool;
+		commandBufferInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
 
-	vkCheck(vkCreateCommandPool(device, &commandPoolInfo, nullptr, &commandPool));
-
-	VkCommandBufferAllocateInfo commandBufferInfo = {};
-	commandBufferInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-	commandBufferInfo.commandBufferCount = 1;
-	commandBufferInfo.commandPool = commandPool;
-	commandBufferInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-
-	vkCheck(vkAllocateCommandBuffers(device, &commandBufferInfo, &mainCommandBuffer));
+		vkCheck(vkAllocateCommandBuffers(device, &commandBufferInfo, &frames[i].mainCommandBuffer));
+	}
 
 	// Init framebuffer
 	VkAttachmentDescription colorAttachment = {};
@@ -487,7 +519,7 @@ void Init(GLFWwindow* window)
 	subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
 
 
-	VkAttachmentDescription attachments[2] = {colorAttachment, depthAttachment};
+	VkAttachmentDescription attachments[2] = { colorAttachment, depthAttachment };
 	VkRenderPassCreateInfo renderPassInfo = {};
 	renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
 	renderPassInfo.attachmentCount = 2;
@@ -524,13 +556,92 @@ void Init(GLFWwindow* window)
 	// so we can wait on it before using it on a GPU command (for the first frame)
 	fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
 
-	vkCheck(vkCreateFence(device, &fenceInfo, nullptr, &renderFence));
-
 	VkSemaphoreCreateInfo semaphoreInfo = {};
 	semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
 
-	vkCheck(vkCreateSemaphore(device, &semaphoreInfo, nullptr, &renderSemaphore));
-	vkCheck(vkCreateSemaphore(device, &semaphoreInfo, nullptr, &presentSemaphore));
+	for (int i = 0; i < frame_overlap; i++)
+	{
+		vkCheck(vkCreateFence(device, &fenceInfo, nullptr, &frames[i].renderFence));
+
+		vkCheck(vkCreateSemaphore(device, &semaphoreInfo, nullptr, &frames[i].renderSemaphore));
+		vkCheck(vkCreateSemaphore(device, &semaphoreInfo, nullptr, &frames[i].presentSemaphore));
+	}
+
+	// Init descriptors
+	// create a descriptor pool that will hold 10 uniform buffers
+	std::vector<VkDescriptorPoolSize> sizes = { {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 10} };
+	/* 
+	 * When creating a descriptor pool, you need to specify how many descriptors of each type you will need,
+	 * and what’s the maximum number of sets to allocate from it.
+	 */
+
+	VkDescriptorPoolCreateInfo descriptorPoolInfo = {};
+	descriptorPoolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+	descriptorPoolInfo.maxSets = 10;
+	descriptorPoolInfo.poolSizeCount = sizes.size();
+	descriptorPoolInfo.pPoolSizes = sizes.data();
+
+	vkCheck(vkCreateDescriptorPool(device, &descriptorPoolInfo, nullptr, &descriptorPool));
+
+	VkDescriptorSetLayoutBinding cameraBufferBinding;
+	cameraBufferBinding.binding = 0;
+	cameraBufferBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+	cameraBufferBinding.descriptorCount = 1;
+	cameraBufferBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+
+	VkDescriptorSetLayoutCreateInfo descriptorSetLayoutInfo = {};
+	descriptorSetLayoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+	descriptorSetLayoutInfo.bindingCount = 1;
+	descriptorSetLayoutInfo.pBindings = &cameraBufferBinding;
+
+	vkCheck(vkCreateDescriptorSetLayout(device, &descriptorSetLayoutInfo, nullptr, &globalSetLayout));
+
+	for (int i = 0; i < frame_overlap; i++)
+	{
+		VkBufferCreateInfo bufferInfo = {};
+		bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+		bufferInfo.pNext = nullptr;
+
+		bufferInfo.size = sizeof(GPUCameraData);
+		bufferInfo.usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
+
+
+		VmaAllocationCreateInfo vmaallocInfo = {};
+		vmaallocInfo.usage = VMA_MEMORY_USAGE_CPU_TO_GPU;
+
+		AllocatedBuffer newBuffer;
+
+		//allocate the buffer
+		vkCheck(vmaCreateBuffer(allocator, &bufferInfo, &vmaallocInfo,
+								 &newBuffer.buffer,
+								 &newBuffer.allocation,
+								 nullptr));
+
+		frames[i].cameraBuffer = newBuffer;
+
+		VkDescriptorSetAllocateInfo descriptorSetAllocInfo = {};
+		descriptorSetAllocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+		descriptorSetAllocInfo.descriptorPool = descriptorPool;
+		descriptorSetAllocInfo.descriptorSetCount = 1;
+		descriptorSetAllocInfo.pSetLayouts = &globalSetLayout;
+
+		vkCheck(vkAllocateDescriptorSets(device, &descriptorSetAllocInfo, &frames[i].globalDescriptor));
+
+		VkDescriptorBufferInfo descriptorBufferInfo = {};
+		descriptorBufferInfo.buffer = frames[i].cameraBuffer.buffer;
+		descriptorBufferInfo.offset = 0;
+		descriptorBufferInfo.range = sizeof(GPUCameraData);
+
+		VkWriteDescriptorSet setWrite = {};
+		setWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+		setWrite.dstSet = frames[i].globalDescriptor;
+		setWrite.dstBinding = 0;
+		setWrite.descriptorCount = 1;
+		setWrite.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+		setWrite.pBufferInfo = &descriptorBufferInfo;
+
+		vkUpdateDescriptorSets(device, 1, &setWrite, 0, nullptr);
+	}
 
 	// Init pipeline
 	vertexShaderModule = CompileShader("src/shaders/triangle.vert.glsl", shaderc_vertex_shader, "main", "vertex shader");
@@ -554,7 +665,7 @@ void Init(GLFWwindow* window)
 	VkPipelineVertexInputStateCreateInfo vertexInputStateInfo = {};
 	vertexInputStateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
 	vertexInputStateInfo.vertexAttributeDescriptionCount = vertexDescription.attributes.size();
-	vertexInputStateInfo.pVertexAttributeDescriptions= vertexDescription.attributes.data();
+	vertexInputStateInfo.pVertexAttributeDescriptions = vertexDescription.attributes.data();
 	vertexInputStateInfo.vertexBindingDescriptionCount = vertexDescription.bindings.size();
 	vertexInputStateInfo.pVertexBindingDescriptions = vertexDescription.bindings.data();
 
@@ -577,7 +688,7 @@ void Init(GLFWwindow* window)
 
 	VkPipelineColorBlendAttachmentState colorBlendAttachmentState = {};
 	colorBlendAttachmentState.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
-												VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+		VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
 	colorBlendAttachmentState.blendEnable = false;
 
 	VkPipelineColorBlendStateCreateInfo colorBlendStateInfo = {};
@@ -623,9 +734,9 @@ void Init(GLFWwindow* window)
 	pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
 	pipelineLayoutInfo.pushConstantRangeCount = 1;
 	pipelineLayoutInfo.pPushConstantRanges = &meshConstantRange;
-	pipelineLayoutInfo.setLayoutCount = 0;
-	pipelineLayoutInfo.pSetLayouts = nullptr;
-	
+	pipelineLayoutInfo.setLayoutCount = 1;
+	pipelineLayoutInfo.pSetLayouts = &globalSetLayout;
+
 	vkCheck(vkCreatePipelineLayout(device, &pipelineLayoutInfo, nullptr, &pipelineLayout));
 
 	VkGraphicsPipelineCreateInfo pipelineInfo = {};
@@ -649,19 +760,19 @@ void Init(GLFWwindow* window)
 
 void Render(GLFWwindow* window)
 {
-	vkCheck(vkWaitForFences(device, 1, &renderFence, true, 1000000000));
-	vkCheck(vkResetFences(device, 1, &renderFence));
+	vkCheck(vkWaitForFences(device, 1, &GetCurrentFrame().renderFence, true, 1000000000));
+	vkCheck(vkResetFences(device, 1, &GetCurrentFrame().renderFence));
 
-	vkCheck(vkResetCommandBuffer(mainCommandBuffer, NULL));
+	vkCheck(vkResetCommandBuffer(GetCurrentFrame().mainCommandBuffer, NULL));
 
 	uint32_t frameIndex;
-	vkCheck(vkAcquireNextImageKHR(device, swapchain, 1000000000, presentSemaphore, nullptr, &frameIndex));
+	vkCheck(vkAcquireNextImageKHR(device, swapchain, 1000000000, GetCurrentFrame().presentSemaphore, nullptr, &frameIndex));
 
 	VkCommandBufferBeginInfo cmdBeginInfo = {};
 	cmdBeginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
 	cmdBeginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
 
-	vkCheck(vkBeginCommandBuffer(mainCommandBuffer, &cmdBeginInfo));
+	vkCheck(vkBeginCommandBuffer(GetCurrentFrame().mainCommandBuffer, &cmdBeginInfo));
 
 	VkClearValue clearValue;
 	clearValue.color = { { 0.0f, 0.2f, 1.0f, 1.0f } };
@@ -680,13 +791,6 @@ void Render(GLFWwindow* window)
 	renderPassBeginInfo.renderArea.extent = { width, height };
 	renderPassBeginInfo.renderArea.offset = { 0, 0 };
 
-	vkCmdBeginRenderPass(mainCommandBuffer, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
-
-	vkCmdBindPipeline(mainCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline);
-
-	VkDeviceSize offset = { 0 };
-	vkCmdBindVertexBuffers(mainCommandBuffer, 0, 1, &monkeyMesh.vertexBuffer.buffer, &offset);
-
 	//make a model view matrix for rendering the object
 	//camera position
 	glm::vec3 camPos = { 0.f,0.f,-2.f };
@@ -696,41 +800,65 @@ void Render(GLFWwindow* window)
 	glm::mat4 projection = glm::perspective(glm::radians(70.f), (float)width / (float)height, 0.1f, 200.0f);
 	projection[1][1] *= -1;
 	//model rotation
-	glm::mat4 model = glm::translate(glm::mat4{ 1.0f }, glm::vec3(0, -5, -10))
-					* glm::rotate(glm::mat4{ 1.0f }, glm::radians(frameNumber * 0.004f), glm::vec3(0, 1, 0));
+	glm::mat4 model = glm::translate(glm::mat4{ 1.0f }, glm::vec3(0, 0, -10))
+		* glm::rotate(glm::mat4{ 1.0f }, glm::radians(frameNumber * 0.004f), glm::vec3(0, 1, 0));
 
 	//calculate final mesh matrix
 	glm::mat4 meshMatrix = projection * view * model;
+	
+	GPUCameraData cameraData;
+	cameraData.projection = projection;
+	cameraData.view = view;
+	cameraData.viewproj = projection * view;
+
+	void* data;
+	vmaMapMemory(allocator, GetCurrentFrame().cameraBuffer.allocation, &data);
+	memcpy(data, &cameraData, sizeof(GPUCameraData));
+	vmaUnmapMemory(allocator, GetCurrentFrame().cameraBuffer.allocation);
+
+	vkCmdBeginRenderPass(GetCurrentFrame().mainCommandBuffer, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
+	vkCmdBindPipeline(GetCurrentFrame().mainCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline);
+
+	VkDeviceSize offset = { 0 };
+	vkCmdBindVertexBuffers(GetCurrentFrame().mainCommandBuffer, 0, 1, &monkeyMesh.vertexBuffer.buffer, &offset);
+
+	vkCmdBindDescriptorSets(GetCurrentFrame().mainCommandBuffer, 
+							VK_PIPELINE_BIND_POINT_GRAPHICS, 
+							pipelineLayout, 
+							0, 1,
+							&GetCurrentFrame().globalDescriptor,
+							0, nullptr);
+
 
 	MeshPushConstants constants;
-	constants.renderMatrix = meshMatrix;
+	constants.renderMatrix = model;
 
-	vkCmdPushConstants(mainCommandBuffer, pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(MeshPushConstants), &constants);
+	vkCmdPushConstants(GetCurrentFrame().mainCommandBuffer, pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(MeshPushConstants), &constants);
 
-	vkCmdDraw(mainCommandBuffer, monkeyMesh.vertices.size(), 1, 0, 0);
+	vkCmdDraw(GetCurrentFrame().mainCommandBuffer, monkeyMesh.vertices.size(), 1, 0, 0);
 
-	vkCmdEndRenderPass(mainCommandBuffer);
-	vkCheck(vkEndCommandBuffer(mainCommandBuffer));
+	vkCmdEndRenderPass(GetCurrentFrame().mainCommandBuffer);
+	vkCheck(vkEndCommandBuffer(GetCurrentFrame().mainCommandBuffer));
 
 	VkPipelineStageFlags waitStage = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
 	VkSubmitInfo submitInfo = {};
 	submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 	submitInfo.commandBufferCount = 1;
-	submitInfo.pCommandBuffers = &mainCommandBuffer;
+	submitInfo.pCommandBuffers = &GetCurrentFrame().mainCommandBuffer;
 	submitInfo.signalSemaphoreCount = 1;
-	submitInfo.pSignalSemaphores = &renderSemaphore;
+	submitInfo.pSignalSemaphores = &GetCurrentFrame().renderSemaphore;
 	submitInfo.waitSemaphoreCount = 1;
-	submitInfo.pWaitSemaphores = &presentSemaphore;
+	submitInfo.pWaitSemaphores = &GetCurrentFrame().presentSemaphore;
 	submitInfo.pWaitDstStageMask = &waitStage;
 
-	vkCheck(vkQueueSubmit(graphicsQueue, 1, &submitInfo, renderFence));
+	vkCheck(vkQueueSubmit(graphicsQueue, 1, &submitInfo, GetCurrentFrame().renderFence));
 
 	VkPresentInfoKHR presentInfo = {};
 	presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
 	presentInfo.swapchainCount = 1;
 	presentInfo.pSwapchains = &swapchain;
 	presentInfo.waitSemaphoreCount = 1;
-	presentInfo.pWaitSemaphores = &renderSemaphore;
+	presentInfo.pWaitSemaphores = &GetCurrentFrame().renderSemaphore;
 	presentInfo.pImageIndices = &frameIndex;
 
 	vkCheck(vkQueuePresentKHR(graphicsQueue, &presentInfo));
@@ -738,7 +866,7 @@ void Render(GLFWwindow* window)
 	frameNumber++;
 }
 
-int main() 
+int main()
 {
 	int rc = glfwInit();
 	assert(rc);
@@ -766,13 +894,22 @@ int main()
 	vmaDestroyBuffer(allocator, triangleMesh.vertexBuffer.buffer, triangleMesh.vertexBuffer.allocation);
 	vmaDestroyBuffer(allocator, monkeyMesh.vertexBuffer.buffer, monkeyMesh.vertexBuffer.allocation);
 	vmaDestroyImage(allocator, depthImage.image, depthImage.allocation);
-	vmaDestroyAllocator(allocator);
 	vkDestroyImageView(device, depthImageView, nullptr);
 	vkDestroyShaderModule(device, vertexShaderModule, nullptr);
 	vkDestroyShaderModule(device, fragmentShaderModule, nullptr);
 	vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
 	vkDestroyPipeline(device, graphicsPipeline, nullptr);
-	vkDestroyCommandPool(device, commandPool, nullptr);
+	for (int i = 0; i < frame_overlap; i++)
+	{
+		vkDestroyCommandPool(device, frames[i].commandPool, nullptr);
+		vkDestroySemaphore(device, frames[i].renderSemaphore, nullptr);
+		vkDestroySemaphore(device, frames[i].presentSemaphore, nullptr);
+		vkDestroyFence(device, frames[i].renderFence, nullptr);
+		vmaDestroyBuffer(allocator, frames[i].cameraBuffer.buffer, frames[i].cameraBuffer.allocation);
+	}
+	vkDestroyDescriptorPool(device, descriptorPool, nullptr);
+	vkDestroyDescriptorSetLayout(device, globalSetLayout, nullptr);
+	vmaDestroyAllocator(allocator);
 	vkDestroySwapchainKHR(device, swapchain, nullptr);
 	vkDestroyRenderPass(device, renderPass, nullptr);
 	for (int i = 0; i < framebuffers.size(); i++)
@@ -780,9 +917,6 @@ int main()
 		vkDestroyFramebuffer(device, framebuffers[i], nullptr);
 		vkDestroyImageView(device, swapchainImageViews[i], nullptr);
 	}
-	vkDestroySemaphore(device, renderSemaphore, nullptr);
-	vkDestroySemaphore(device, presentSemaphore, nullptr);
-	vkDestroyFence(device, renderFence, nullptr);
 	vkDestroyDevice(device, nullptr);
 	vkDestroySurfaceKHR(instance, surface, nullptr);
 	vkb::destroy_debug_utils_messenger(instance, debugMessenger);
