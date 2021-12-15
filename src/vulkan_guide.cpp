@@ -1200,6 +1200,63 @@ void Init(GLFWwindow* window)
 	vkCheck(vkCreateGraphicsPipelines(device, nullptr, 1, &pipelineInfo, nullptr, &graphicsPipeline));
 }
 
+// Camera stuff
+glm::vec3 cameraPos = { 0, 0, -5 };
+glm::vec3 cameraFront = { 0, 0, 1 };
+glm::vec3 cameraTarget = { 0, 0, 0 };
+glm::vec3 cameraUp = { 0, 1, 0 };
+float deltaTime = 1.0f;
+float lastFrame = 0.0f;
+float lastX = width / 2;
+float lastY = height / 2;
+float yaw = 0.0f;
+float pitch = 0.0f;
+float sensitivity = 0.2f;
+float timer = 0;
+double x = 0, y = 0;
+bool firstTimeMouse = true;
+
+void mouse_callback(GLFWwindow* window, double xpos, double ypos)
+{
+	if (glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_2))
+	{
+		glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_HIDDEN);
+
+		if (firstTimeMouse)
+		{
+			lastX = xpos;
+			lastY = ypos;
+			firstTimeMouse = false;
+		}
+
+		glfwGetCursorPos(window, &x, &y);
+		float xoffset = static_cast<float>(x) - lastX;
+		float yoffset = lastY - static_cast<float>(y);
+		lastX = static_cast<float>(x);
+		lastY = static_cast<float>(y);
+		xoffset *= sensitivity;
+		yoffset *= sensitivity;
+
+		yaw += xoffset;
+		pitch += yoffset;
+
+		if (pitch > 89.f)
+			pitch = 89.f;
+		if (pitch < -89.f)
+			pitch = -89.f;
+
+		glm::vec3 front;
+		front.x = -(sin(glm::radians(yaw)) * cos(glm::radians(pitch)));
+		front.y = -(sin(glm::radians(pitch)));
+		front.z = cos(glm::radians(yaw)) * cos(glm::radians(pitch));
+		cameraFront = glm::normalize(front);
+	}
+	else
+	{
+		glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+	}
+}
+
 void Render(GLFWwindow* window)
 {
 	vkCheck(vkWaitForFences(device, 1, &GetCurrentFrame().renderFence, true, 1000000000));
@@ -1233,11 +1290,35 @@ void Render(GLFWwindow* window)
 	renderPassBeginInfo.renderArea.extent = { width, height };
 	renderPassBeginInfo.renderArea.offset = { 0, 0 };
 
+	// Camera
+	float cameraSpeed = 10.0f * deltaTime;
+	float currentFrame = static_cast<float>(glfwGetTime());
+	deltaTime = currentFrame - lastFrame;
+	lastFrame = currentFrame;
+
+	if (glfwGetKey(window, GLFW_KEY_W))
+		cameraPos -= cameraSpeed * cameraFront;
+	if (glfwGetKey(window, GLFW_KEY_S))
+		cameraPos += cameraSpeed * cameraFront;
+	if (glfwGetKey(window, GLFW_KEY_D))
+		cameraPos -= glm::normalize(glm::cross(cameraFront, cameraUp)) * cameraSpeed;
+	if (glfwGetKey(window, GLFW_KEY_A))
+		cameraPos += glm::normalize(glm::cross(cameraFront, cameraUp)) * cameraSpeed;
+	if (glfwGetKey(window, GLFW_KEY_SPACE))
+		cameraPos.y += cameraSpeed;
+	if (glfwGetKey(window, GLFW_KEY_LEFT_SHIFT))
+		cameraPos.y -= cameraSpeed;
+	if (glfwGetKey(window, GLFW_KEY_ESCAPE))
+		glfwSetWindowShouldClose(window, true);
+
+	glfwSetCursorPosCallback(window, mouse_callback);
+
 	//make a model view matrix for rendering the object
 	//camera position
 	glm::vec3 camPos = { 0.f,0.f,-2.f };
 
-	glm::mat4 view = glm::translate(glm::mat4(1.f), camPos);
+	//glm::mat4 view = glm::translate(glm::mat4(1.f), camPos);
+	glm::mat4 view = glm::lookAtLH(cameraPos, cameraPos + cameraFront, cameraUp);
 	//camera projection
 	glm::mat4 projection = glm::perspective(glm::radians(70.f), (float)width / (float)height, 0.1f, 200.0f);
 	projection[1][1] *= -1;
