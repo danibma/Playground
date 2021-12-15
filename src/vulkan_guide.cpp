@@ -22,6 +22,7 @@
 #include <array>
 #include <chrono>
 #include <functional>
+#include <sstream>
 
 #include <vkBoostrap/VkBootstrap.h>
 
@@ -385,6 +386,7 @@ bool Mesh::loadFromObj(const char* file)
 				tinyobj::real_t ny = attrib.normals[3 * idx.normal_index + 1];
 				tinyobj::real_t nz = attrib.normals[3 * idx.normal_index + 2];
 
+				if (idx.texcoord_index < 0) idx.texcoord_index = 0;
 				tinyobj::real_t ux = attrib.texcoords[2 * idx.texcoord_index + 0];
 				tinyobj::real_t uy = attrib.texcoords[2 * idx.texcoord_index + 1];
 
@@ -1320,9 +1322,9 @@ void Render(GLFWwindow* window)
 	//glm::mat4 view = glm::translate(glm::mat4(1.f), camPos);
 	glm::mat4 view = glm::lookAtLH(cameraPos, cameraPos + cameraFront, cameraUp);
 	//camera projection
-	glm::mat4 projection = glm::perspective(glm::radians(70.f), (float)width / (float)height, 0.1f, 200.0f);
+	glm::mat4 projection = glm::perspective(glm::radians(70.f), (float)width / (float)height, 0.1f, 1000.0f);
 	projection[1][1] *= -1;
-	glm::mat4 model = glm::translate(glm::mat4{1.0f}, glm::vec3{ 5, -12, -5 });
+	glm::mat4 model = glm::translate(glm::mat4{ 1.0f }, glm::vec3{ 5, -12, -5 });
 
 	//calculate final mesh matrix
 	glm::mat4 meshMatrix = projection * view * model;
@@ -1438,9 +1440,24 @@ int main()
 
 	Init(window);
 
+	int frameCount = 0;
+	double previousTime = glfwGetTime();
+
 	while (!glfwWindowShouldClose(window))
 	{
 		glfwPollEvents();
+
+		// Measure speed
+		double currentTime = glfwGetTime();
+		frameCount++;
+		if (currentTime - previousTime >= 1.0)
+		{
+			std::stringstream ss;
+			ss << "Vulkan -> " << std::setprecision(2) << 1000.0 / double(frameCount) << "ms | " << frameCount << " FPS";
+			glfwSetWindowTitle(window, ss.str().c_str());
+			frameCount = 0;
+			previousTime += 1.0;
+		}
 
 		if (glfwGetKey(window, GLFW_KEY_ESCAPE))
 			glfwSetWindowShouldClose(window, true);

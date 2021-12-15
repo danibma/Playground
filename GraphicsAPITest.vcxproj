@@ -561,6 +561,20 @@
     <None Include="assets\lost_empire-RGB.png" />
     <None Include="assets\lost_empire-RGBA.png" />
   </ItemGroup>
+  <ItemGroup>
+    <None Include="assets\lencol_base.png" />
+    <Image Include="assets\movel_base.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="assets\lencol.obj">
+      <FileType>Document</FileType>
+    </None>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="assets\sponza.obj">
+      <FileType>Document</FileType>
+    </None>
+  </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>

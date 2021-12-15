@@ -1276,6 +1276,15 @@
     <None Include="assets\monkey_smooth.obj">
       <Filter>assets</Filter>
     </None>
+    <None Include="assets\lencol_base.png">
+      <Filter>assets</Filter>
+    </None>
+    <None Include="assets\lencol.obj">
+      <Filter>assets</Filter>
+    </None>
+    <None Include="assets\sponza.obj">
+      <Filter>assets</Filter>
+    </None>
   </ItemGroup>
   <ItemGroup>
     <Filter Include="external">
@@ -1308,5 +1317,10 @@
   </ItemGroup>
   <ItemGroup>
     <Text Include="TODO.md" />
+  </ItemGroup>
+  <ItemGroup>
+    <Image Include="assets\movel_base.png">
+      <Filter>assets</Filter>
+    </Image>
   </ItemGroup>
 </Project>

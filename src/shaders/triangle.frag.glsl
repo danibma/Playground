@@ -18,5 +18,6 @@ layout(set = 0, binding = 1) uniform  SceneData{
 void main()
 {
 	vec3 color = texture(tex1, inTexCoord).xyz;
+	//vec3 color = inColor;
 	outFragColor = vec4(color, 1.0f);
 }
