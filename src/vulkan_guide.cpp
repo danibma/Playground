@@ -21,6 +21,7 @@
 #include <string>
 #include <array>
 #include <chrono>
+#include <functional>
 
 #include <vkBoostrap/VkBootstrap.h>
 
@@ -28,6 +29,9 @@
 
 #define VMA_IMPLEMENTATION
 #include "VulkanMemoryAllocator/vk_mem_alloc.h"
+
+#define STB_IMAGE_IMPLEMENTATION
+#include <stb_image.h>
 
 constexpr int width = 1600;
 constexpr int height = 900;
@@ -66,7 +70,7 @@ struct Vertex
 	glm::vec3 position;
 	glm::vec3 normal;
 	glm::vec3 color;
-
+	glm::vec2 uv;
 	static VertexInputDescription GetVertexDescription();
 };
 
@@ -117,6 +121,16 @@ struct FrameData {
 	VkDescriptorSet objectDescriptorSet;
 };
 
+struct UploadContext {
+	VkFence uploadFence;
+	VkCommandPool commandPool;
+};
+
+struct Texture {
+	AllocatedImage image;
+	VkImageView imageView;
+};
+
 VkPhysicalDeviceProperties gpuProperties;
 VkInstance instance; // Vulkan library handle
 VkDebugUtilsMessengerEXT debugMessenger; // Vulkan debug output handle
@@ -152,6 +166,49 @@ VkDescriptorSetLayout objectSetLayout;
 VkDescriptorPool descriptorPool;
 GPUSceneData sceneParameters;
 AllocatedBuffer sceneParameterBuffer;
+UploadContext uploadContext;
+//std::unordered_map<std::string, Texture> loadedTextures;
+VkDescriptorSet textureSet{ VK_NULL_HANDLE };
+VkDescriptorSetLayout singleTextureSetLayout;
+Texture lostEmpire;
+VkSampler blockySampler;
+
+void immediate_submit(std::function<void(VkCommandBuffer cmd)>&& function)
+{
+	VkCommandBuffer cmdBuffer;
+	VkCommandBufferAllocateInfo cmdBufferAllocInfo = {};
+	cmdBufferAllocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+	cmdBufferAllocInfo.commandPool = uploadContext.commandPool;
+	cmdBufferAllocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+	cmdBufferAllocInfo.commandBufferCount = 1;
+
+	vkCheck(vkAllocateCommandBuffers(device, &cmdBufferAllocInfo, &cmdBuffer));
+
+	VkCommandBufferBeginInfo cmdBufferBeginInfo = {};
+	cmdBufferBeginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+	cmdBufferBeginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+
+	vkCheck(vkBeginCommandBuffer(cmdBuffer, &cmdBufferBeginInfo));
+
+	function(cmdBuffer);
+
+	vkCheck(vkEndCommandBuffer(cmdBuffer));
+
+	VkSubmitInfo submitInfo = {};
+	submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+	submitInfo.commandBufferCount = 1;
+	submitInfo.pCommandBuffers = &cmdBuffer;
+
+	vkCheck(vkQueueSubmit(graphicsQueue, 1, &submitInfo, uploadContext.uploadFence));
+
+	vkWaitForFences(device, 1, &uploadContext.uploadFence, true, 9999999999);
+	vkResetFences(device, 1, &uploadContext.uploadFence);
+
+	vkFreeCommandBuffers(device, uploadContext.commandPool, 1, &cmdBuffer);
+
+	//clear the command pool. This will free the command buffer too
+	vkResetCommandPool(device, uploadContext.commandPool, 0);
+}
 
 constexpr FrameData& GetCurrentFrame()
 {
@@ -264,9 +321,16 @@ VertexInputDescription Vertex::GetVertexDescription()
 	colorAttribute.format = VK_FORMAT_R32G32B32_SFLOAT;
 	colorAttribute.offset = offsetof(Vertex, color);
 
+	VkVertexInputAttributeDescription uvAttribute = {};
+	uvAttribute.binding = 0;
+	uvAttribute.location = 3;
+	uvAttribute.format = VK_FORMAT_R32G32_SFLOAT;
+	uvAttribute.offset = offsetof(Vertex, uv);
+
 	description.attributes.push_back(positionAttribute);
 	description.attributes.push_back(normalAttribute);
 	description.attributes.push_back(colorAttribute);
+	description.attributes.push_back(uvAttribute);
 
 	return description;
 }
@@ -321,6 +385,9 @@ bool Mesh::loadFromObj(const char* file)
 				tinyobj::real_t ny = attrib.normals[3 * idx.normal_index + 1];
 				tinyobj::real_t nz = attrib.normals[3 * idx.normal_index + 2];
 
+				tinyobj::real_t ux = attrib.texcoords[2 * idx.texcoord_index + 0];
+				tinyobj::real_t uy = attrib.texcoords[2 * idx.texcoord_index + 1];
+
 				//copy it into our vertex
 				Vertex new_vert;
 				new_vert.position.x = vx;
@@ -330,6 +397,9 @@ bool Mesh::loadFromObj(const char* file)
 				new_vert.normal.x = nx;
 				new_vert.normal.y = ny;
 				new_vert.normal.z = nz;
+
+				new_vert.uv.x = ux;
+				new_vert.uv.y = 1 - uy; //do the 1-y on the uv.y because Vulkan UV coordinates work like that.
 
 				//we are setting the vertex color as the vertex normal. This is just for display purposes
 				new_vert.color = new_vert.normal;
@@ -375,6 +445,130 @@ VkImageViewCreateInfo ImageViewCreateInfo(VkFormat format, VkImage image, VkImag
 	return info;
 }
 
+bool LoadFromImage(const char* file, AllocatedImage& outImage)
+{
+	int texWidth, texHeight, texChannels;
+
+	stbi_uc* pixels = stbi_load(file, &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
+
+	if (!pixels)
+	{
+		std::cout << "Failed to load texture file " << file << std::endl;
+		return false;
+	}
+
+	void* pixelPtr = pixels;
+	// We calculate image sizes by doing 4 bytes per pixel, and texWidth * texHeight number of pixels.
+	VkDeviceSize imageSize = texWidth * texHeight * 4;
+
+	VkFormat imageFormat = VK_FORMAT_R8G8B8A8_SRGB;
+
+	VkBufferCreateInfo bufferInfo = {};
+	bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+	bufferInfo.size = imageSize;
+	bufferInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+
+
+	VmaAllocationCreateInfo vmaallocInfo = {};
+	vmaallocInfo.usage = VMA_MEMORY_USAGE_CPU_ONLY;
+
+	AllocatedBuffer stagingBuffer;
+
+	vkCheck(vmaCreateBuffer(allocator, &bufferInfo, &vmaallocInfo,
+							&stagingBuffer.buffer,
+							&stagingBuffer.allocation,
+							nullptr));
+
+	void* data;
+	vmaMapMemory(allocator, stagingBuffer.allocation, &data);
+
+	memcpy(data, pixelPtr, static_cast<size_t>(imageSize));
+
+	vmaUnmapMemory(allocator, stagingBuffer.allocation);
+	//we no longer need the loaded data, so we can free the pixels as they are now in the staging buffer
+	stbi_image_free(pixels);
+
+	VkExtent3D imageExtent;
+	imageExtent.width = texWidth;
+	imageExtent.height = texHeight;
+	imageExtent.depth = 1;
+
+	VkImageCreateInfo imgInfo = ImageCreateInfo(imageFormat, VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT, imageExtent);
+
+	AllocatedImage image;
+
+	VmaAllocationCreateInfo imgAllocInfo = {};
+	imgAllocInfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
+
+	vmaCreateImage(allocator, &imgInfo, &imgAllocInfo, &image.image, &image.allocation, nullptr);
+
+	immediate_submit([&](VkCommandBuffer cmd) {
+		VkImageSubresourceRange range;
+		range.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+		range.levelCount = 1;
+		range.baseMipLevel = 0;
+		range.layerCount = 1;
+		range.baseArrayLayer = 0;
+
+		VkImageMemoryBarrier imageBarrierToTransfer = {};
+		imageBarrierToTransfer.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+		imageBarrierToTransfer.srcAccessMask = 0;
+		imageBarrierToTransfer.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+		imageBarrierToTransfer.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+		imageBarrierToTransfer.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+		imageBarrierToTransfer.image = image.image;
+		imageBarrierToTransfer.subresourceRange = range;
+
+		vkCmdPipelineBarrier(cmd,
+							 VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+							 VK_PIPELINE_STAGE_TRANSFER_BIT,
+							 0, 0, nullptr, 0, nullptr, 1,
+							 &imageBarrierToTransfer);
+
+		VkBufferImageCopy copyRegion = {};
+		copyRegion.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+		copyRegion.imageSubresource.mipLevel = 0;
+		copyRegion.imageSubresource.baseArrayLayer = 0;
+		copyRegion.imageSubresource.layerCount = 1;
+		copyRegion.imageExtent = imageExtent;
+
+		//copy the buffer into the image
+		vkCmdCopyBufferToImage(cmd, stagingBuffer.buffer, image.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &copyRegion);
+
+		VkImageMemoryBarrier imageBarrierToRead = {};
+		imageBarrierToRead.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+		imageBarrierToRead.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+		imageBarrierToRead.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+		imageBarrierToRead.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+		imageBarrierToRead.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+		imageBarrierToRead.image = image.image;
+		imageBarrierToRead.subresourceRange = range;
+
+		vkCmdPipelineBarrier(cmd,
+							 VK_PIPELINE_STAGE_TRANSFER_BIT,
+							 VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+							 0, 0, nullptr, 0, nullptr, 1,
+							 &imageBarrierToRead);
+	});
+
+	vmaDestroyBuffer(allocator, stagingBuffer.buffer, stagingBuffer.allocation);
+
+	outImage = image;
+
+	return true;
+}
+
+void LoadImages()
+{
+	/*Texture lostEmpire;
+	LoadFromImage("assets/lost-empire-rgba", lostEmpire.image);
+
+	VkImageViewCreateInfo lostEmpireImageInfo = ImageViewCreateInfo(VK_FORMAT_R8G8B8A8_SRGB, lostEmpire.image.image, VK_IMAGE_ASPECT_COLOR_BIT);
+	vkCreateImageView(device, &lostEmpireImageInfo, nullptr, &lostEmpire.imageView);
+
+	loadedTextures["empire_diffuse"] = lostEmpire;*/
+}
+
 VkDescriptorSetLayoutBinding DescriptorSetLayoutBinding(VkDescriptorType type, VkShaderStageFlags stageFlags, uint32_t binding)
 {
 	VkDescriptorSetLayoutBinding setbind = {};
@@ -402,6 +596,30 @@ VkWriteDescriptorSet WriteDescriptorBuffer(VkDescriptorType type, VkDescriptorSe
 	return write;
 }
 
+VkSamplerCreateInfo SamplerCreateInfo(VkFilter filters, VkSamplerAddressMode samplerAddressMode = VK_SAMPLER_ADDRESS_MODE_REPEAT)
+{
+	VkSamplerCreateInfo info = {};
+	info.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+	info.magFilter = filters;
+	info.minFilter = filters;
+	info.addressModeU = samplerAddressMode;
+	info.addressModeV = samplerAddressMode;
+	info.addressModeW = samplerAddressMode;
+
+	return info;
+}
+VkWriteDescriptorSet WriteDescriptorImage(VkDescriptorType type, VkDescriptorSet dstSet, VkDescriptorImageInfo* imageInfo, uint32_t binding)
+{
+	VkWriteDescriptorSet write = {};
+	write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+	write.dstBinding = binding;
+	write.dstSet = dstSet;
+	write.descriptorCount = 1;
+	write.descriptorType = type;
+	write.pImageInfo = imageInfo;
+
+	return write;
+}
 
 size_t pad_uniform_buffer_size(size_t originalSize)
 {
@@ -458,35 +676,6 @@ void Init(GLFWwindow* window)
 	vkGetPhysicalDeviceProperties(chosenGPU, &gpuProperties);
 	std::cout << "The GPU has a minimum buffer alignment of " << gpuProperties.limits.minUniformBufferOffsetAlignment << std::endl;
 
-	// Init mesh
-	triangleMesh.vertices.resize(3);
-	triangleMesh.vertices[0].position = { 0.5f,  0.5f, 0.0f };
-	triangleMesh.vertices[1].position = { -0.5f,  0.5f, 0.0f };
-	triangleMesh.vertices[2].position = { 0.0f, -0.5f, 0.0f };
-	triangleMesh.vertices[0].color = { 1.0f, 0.0f, 0.0f };
-	triangleMesh.vertices[1].color = { 0.0f, 1.0f, 0.0f };
-	triangleMesh.vertices[2].color = { 0.0f, 0.0f, 1.0f };
-
-	monkeyMesh.loadFromObj("assets/monkey_smooth.obj");
-
-	// Upload mesh
-	VkBufferCreateInfo bufferInfo = {};
-	bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-	bufferInfo.size = monkeyMesh.vertices.size() * sizeof(Vertex);
-	bufferInfo.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
-
-	VmaAllocationCreateInfo vmaAllocInfo = {};
-	vmaAllocInfo.usage = VMA_MEMORY_USAGE_CPU_TO_GPU;
-
-	vkCheck(vmaCreateBuffer(allocator, &bufferInfo, &vmaAllocInfo,
-							&monkeyMesh.vertexBuffer.buffer, &monkeyMesh.vertexBuffer.allocation, nullptr));
-
-	void* data;
-	vmaMapMemory(allocator, monkeyMesh.vertexBuffer.allocation, &data);
-	memcpy(data, monkeyMesh.vertices.data(), monkeyMesh.vertices.size() * sizeof(Vertex));
-	vmaUnmapMemory(allocator, monkeyMesh.vertexBuffer.allocation);
-
-
 	// Init swapchain
 	vkb::SwapchainBuilder swapchainBuilder{ physicalDevice, device, surface };
 	vkb::Swapchain vkbSwapchain = swapchainBuilder.use_default_format_selection()
@@ -536,6 +725,13 @@ void Init(GLFWwindow* window)
 
 		vkCheck(vkAllocateCommandBuffers(device, &commandBufferInfo, &frames[i].mainCommandBuffer));
 	}
+
+	VkCommandPoolCreateInfo uploadCommandPoolInfo = {};
+	uploadCommandPoolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+	uploadCommandPoolInfo.queueFamilyIndex = graphicsQueueFamily;
+	uploadCommandPoolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
+
+	vkCheck(vkCreateCommandPool(device, &uploadCommandPoolInfo, nullptr, &uploadContext.commandPool));
 
 	// Init framebuffer
 	VkAttachmentDescription colorAttachment = {};
@@ -629,12 +825,19 @@ void Init(GLFWwindow* window)
 		vkCheck(vkCreateSemaphore(device, &semaphoreInfo, nullptr, &frames[i].presentSemaphore));
 	}
 
+	VkFenceCreateInfo uploadFenceCreateInfo = {};
+	uploadFenceCreateInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+
+	vkCheck(vkCreateFence(device, &uploadFenceCreateInfo, nullptr, &uploadContext.uploadFence));
+
 	// Init descriptors
 	// create a descriptor pool that will hold 10 uniform buffers
 	std::vector<VkDescriptorPoolSize> sizes = { 
 												{VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 10},
 												{VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 10},
-												{VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 10}
+												{VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 10},
+												//add combined-image-sampler descriptor types to the pool
+												{ VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 10 }
 											  };
 	/* 
 	 * When creating a descriptor pool, you need to specify how many descriptors of each type you will need,
@@ -695,6 +898,18 @@ void Init(GLFWwindow* window)
 	objectSetLayoutInfo.bindingCount = 1;
 	objectSetLayoutInfo.pBindings = &objectBinding;
 	vkCheck(vkCreateDescriptorSetLayout(device, &objectSetLayoutInfo, nullptr, &objectSetLayout));
+
+	// Create texture set layout #2
+	VkDescriptorSetLayoutBinding textureBind = DescriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, 0);
+
+	VkDescriptorSetLayoutCreateInfo textureSetInfo = {};
+	textureSetInfo.bindingCount = 1;
+	textureSetInfo.flags = 0;
+	textureSetInfo.pNext = nullptr;
+	textureSetInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+	textureSetInfo.pBindings = &textureBind;
+
+	vkCreateDescriptorSetLayout(device, &textureSetInfo, nullptr, &singleTextureSetLayout);
 
 	for (int i = 0; i < frame_overlap; i++)
 	{
@@ -789,6 +1004,86 @@ void Init(GLFWwindow* window)
 		vkUpdateDescriptorSets(device, ARRAYSIZE(setWrites), setWrites, 0, nullptr);
 	}
 
+	// Init textures
+	LoadFromImage("assets/lost_empire-RGBA.png", lostEmpire.image);
+
+	VkImageViewCreateInfo lostEmpireImageInfo = ImageViewCreateInfo(VK_FORMAT_R8G8B8A8_SRGB, lostEmpire.image.image, VK_IMAGE_ASPECT_COLOR_BIT);
+	vkCreateImageView(device, &lostEmpireImageInfo, nullptr, &lostEmpire.imageView);
+
+	VkSamplerCreateInfo samplerInfo = SamplerCreateInfo(VK_FILTER_NEAREST);
+
+	vkCreateSampler(device, &samplerInfo, nullptr, &blockySampler);
+
+	VkDescriptorSetAllocateInfo textureSetAllocInfo = {};
+	textureSetAllocInfo.pNext = nullptr;
+	textureSetAllocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+	textureSetAllocInfo.descriptorPool = descriptorPool;
+	textureSetAllocInfo.descriptorSetCount = 1;
+	textureSetAllocInfo.pSetLayouts = &singleTextureSetLayout;
+
+	vkAllocateDescriptorSets(device, &textureSetAllocInfo, &textureSet);
+
+	VkDescriptorImageInfo imageBufferInfo;
+	imageBufferInfo.sampler = blockySampler;
+	imageBufferInfo.imageView = lostEmpire.imageView;
+	imageBufferInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+
+	VkWriteDescriptorSet texture1 = WriteDescriptorImage(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, textureSet, &imageBufferInfo, 0);
+
+	vkUpdateDescriptorSets(device, 1, &texture1, 0, nullptr);
+
+
+	// Init mesh
+	triangleMesh.vertices.resize(3);
+	triangleMesh.vertices[0].position = { 0.5f,  0.5f, 0.0f };
+	triangleMesh.vertices[1].position = { -0.5f,  0.5f, 0.0f };
+	triangleMesh.vertices[2].position = { 0.0f, -0.5f, 0.0f };
+	triangleMesh.vertices[0].color = { 1.0f, 0.0f, 0.0f };
+	triangleMesh.vertices[1].color = { 0.0f, 1.0f, 0.0f };
+	triangleMesh.vertices[2].color = { 0.0f, 0.0f, 1.0f };
+
+	monkeyMesh.loadFromObj("assets/lost_empire.obj");
+
+	// Upload mesh
+	VkBufferCreateInfo stagingBufferInfo = {};
+	stagingBufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+	stagingBufferInfo.size = monkeyMesh.vertices.size() * sizeof(Vertex);
+	stagingBufferInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+
+	VmaAllocationCreateInfo stagingVMAAllocInfo = {};
+	stagingVMAAllocInfo.usage = VMA_MEMORY_USAGE_CPU_ONLY;
+
+	AllocatedBuffer stagingBuffer;
+
+	vkCheck(vmaCreateBuffer(allocator, &stagingBufferInfo, &stagingVMAAllocInfo,
+							&stagingBuffer.buffer, &stagingBuffer.allocation, nullptr));
+
+	void* data;
+	vmaMapMemory(allocator, stagingBuffer.allocation, &data);
+	memcpy(data, monkeyMesh.vertices.data(), monkeyMesh.vertices.size() * sizeof(Vertex));
+	vmaUnmapMemory(allocator, stagingBuffer.allocation);
+
+	VkBufferCreateInfo meshBufferInfo = {};
+	meshBufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+	meshBufferInfo.size = monkeyMesh.vertices.size() * sizeof(Vertex);
+	meshBufferInfo.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+
+	VmaAllocationCreateInfo meshVMAAllocInfo = {};
+	meshVMAAllocInfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
+
+	vkCheck(vmaCreateBuffer(allocator, &meshBufferInfo, &meshVMAAllocInfo,
+							&monkeyMesh.vertexBuffer.buffer, &monkeyMesh.vertexBuffer.allocation, nullptr));
+
+	immediate_submit([=](VkCommandBuffer cmd) {
+		VkBufferCopy copy;
+		copy.dstOffset = 0;
+		copy.srcOffset = 0;
+		copy.size = monkeyMesh.vertices.size() * sizeof(Vertex);
+		vkCmdCopyBuffer(cmd, stagingBuffer.buffer, monkeyMesh.vertexBuffer.buffer, 1, &copy);
+	});
+
+	vmaDestroyBuffer(allocator, stagingBuffer.buffer, stagingBuffer.allocation);
+
 	// Init pipeline
 	vertexShaderModule = CompileShader("src/shaders/triangle.vert.glsl", shaderc_vertex_shader, "main", "vertex shader");
 	fragmentShaderModule = CompileShader("src/shaders/triangle.frag.glsl", shaderc_fragment_shader, "main", "fragment shader");
@@ -876,7 +1171,7 @@ void Init(GLFWwindow* window)
 	meshConstantRange.offset = 0;
 	meshConstantRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
 
-	VkDescriptorSetLayout layouts[] = { globalSetLayout, objectSetLayout };
+	VkDescriptorSetLayout layouts[] = { globalSetLayout, objectSetLayout, singleTextureSetLayout };
 	VkPipelineLayoutCreateInfo pipelineLayoutInfo = {};
 	pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
 	pipelineLayoutInfo.pushConstantRangeCount = 1;
@@ -946,9 +1241,7 @@ void Render(GLFWwindow* window)
 	//camera projection
 	glm::mat4 projection = glm::perspective(glm::radians(70.f), (float)width / (float)height, 0.1f, 200.0f);
 	projection[1][1] *= -1;
-	//model rotation
-	glm::mat4 model = glm::translate(glm::mat4{ 1.0f }, glm::vec3(0, 0, -10))
-		* glm::rotate(glm::mat4{ 1.0f }, glm::radians(frameNumber * 0.004f), glm::vec3(0, 1, 0));
+	glm::mat4 model = glm::translate(glm::mat4{1.0f}, glm::vec3{ 5, -12, -5 });
 
 	//calculate final mesh matrix
 	glm::mat4 meshMatrix = projection * view * model;
@@ -1004,6 +1297,15 @@ void Render(GLFWwindow* window)
 							1, 1,
 							&GetCurrentFrame().objectDescriptorSet,
 							0, nullptr);
+
+	// Bind texture descriptor set (descriptor set #2)
+	vkCmdBindDescriptorSets(GetCurrentFrame().mainCommandBuffer,
+							VK_PIPELINE_BIND_POINT_GRAPHICS,
+							pipelineLayout, 
+							2, 1,
+							&textureSet,
+							0, nullptr);
+
 
 	// Push Constant
 	MeshPushConstants constants;
@@ -1067,8 +1369,14 @@ int main()
 
 	vkDeviceWaitIdle(device);
 
+	vkDestroyDescriptorSetLayout(device, singleTextureSetLayout, nullptr);
+	vkDestroySampler(device, blockySampler, nullptr);
+	vkDestroyImageView(device, lostEmpire.imageView, nullptr);
+	vkDestroyFence(device, uploadContext.uploadFence, nullptr);
+	vkDestroyCommandPool(device, uploadContext.commandPool, nullptr);
 	vmaDestroyBuffer(allocator, triangleMesh.vertexBuffer.buffer, triangleMesh.vertexBuffer.allocation);
 	vmaDestroyBuffer(allocator, monkeyMesh.vertexBuffer.buffer, monkeyMesh.vertexBuffer.allocation);
+	vmaDestroyImage(allocator, lostEmpire.image.image, lostEmpire.image.allocation);
 	vmaDestroyImage(allocator, depthImage.image, depthImage.allocation);
 	vkDestroyImageView(device, depthImageView, nullptr);
 	vkDestroyShaderModule(device, vertexShaderModule, nullptr);
