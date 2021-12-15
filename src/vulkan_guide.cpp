@@ -91,6 +91,18 @@ struct GPUCameraData
 	glm::mat4 viewproj;
 };
 
+struct GPUSceneData {
+	glm::vec4 fogColor; // w is for exponent
+	glm::vec4 fogDistances; //x for min, y for max, zw unused.
+	glm::vec4 ambientColor;
+	glm::vec4 sunlightDirection; //w for sun power
+	glm::vec4 sunlightColor;
+};
+
+struct GPUObjectData {
+	glm::mat4 modelMatrix;
+};
+
 struct FrameData {
 	VkSemaphore presentSemaphore, renderSemaphore;
 	VkFence renderFence;
@@ -99,9 +111,13 @@ struct FrameData {
 	VkCommandBuffer mainCommandBuffer;
 
 	AllocatedBuffer cameraBuffer;
-	VkDescriptorSet globalDescriptor;
+	VkDescriptorSet globalDescriptorSet;
+
+	AllocatedBuffer objectBuffer;
+	VkDescriptorSet objectDescriptorSet;
 };
 
+VkPhysicalDeviceProperties gpuProperties;
 VkInstance instance; // Vulkan library handle
 VkDebugUtilsMessengerEXT debugMessenger; // Vulkan debug output handle
 VkPhysicalDevice chosenGPU; // GPU chosen as the default device
@@ -132,7 +148,10 @@ AllocatedImage depthImage;
 VkFormat depthFormat;
 FrameData frames[frame_overlap];
 VkDescriptorSetLayout globalSetLayout;
+VkDescriptorSetLayout objectSetLayout;
 VkDescriptorPool descriptorPool;
+GPUSceneData sceneParameters;
+AllocatedBuffer sceneParameterBuffer;
 
 constexpr FrameData& GetCurrentFrame()
 {
@@ -356,6 +375,46 @@ VkImageViewCreateInfo ImageViewCreateInfo(VkFormat format, VkImage image, VkImag
 	return info;
 }
 
+VkDescriptorSetLayoutBinding DescriptorSetLayoutBinding(VkDescriptorType type, VkShaderStageFlags stageFlags, uint32_t binding)
+{
+	VkDescriptorSetLayoutBinding setbind = {};
+	setbind.binding = binding;
+	setbind.descriptorCount = 1;
+	setbind.descriptorType = type;
+	setbind.pImmutableSamplers = nullptr;
+	setbind.stageFlags = stageFlags;
+
+	return setbind;
+}
+
+VkWriteDescriptorSet WriteDescriptorBuffer(VkDescriptorType type, VkDescriptorSet dstSet, VkDescriptorBufferInfo* bufferInfo, uint32_t binding)
+{
+	VkWriteDescriptorSet write = {};
+	write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+	write.pNext = nullptr;
+
+	write.dstBinding = binding;
+	write.dstSet = dstSet;
+	write.descriptorCount = 1;
+	write.descriptorType = type;
+	write.pBufferInfo = bufferInfo;
+
+	return write;
+}
+
+
+size_t pad_uniform_buffer_size(size_t originalSize)
+{
+	// Calculate required alignment based on minimum device offset alignment
+	size_t minUboAlignment = gpuProperties.limits.minUniformBufferOffsetAlignment;
+	size_t alignedSize = originalSize;
+	if (minUboAlignment > 0)
+	{
+		alignedSize = (alignedSize + minUboAlignment - 1) & ~(minUboAlignment - 1);
+	}
+	return alignedSize;
+}
+
 void Init(GLFWwindow* window)
 {
 	// Init vulkan core
@@ -395,6 +454,9 @@ void Init(GLFWwindow* window)
 	vmaAllocatorInfo.instance = instance;
 
 	vkCheck(vmaCreateAllocator(&vmaAllocatorInfo, &allocator));
+
+	vkGetPhysicalDeviceProperties(chosenGPU, &gpuProperties);
+	std::cout << "The GPU has a minimum buffer alignment of " << gpuProperties.limits.minUniformBufferOffsetAlignment << std::endl;
 
 	// Init mesh
 	triangleMesh.vertices.resize(3);
@@ -569,12 +631,16 @@ void Init(GLFWwindow* window)
 
 	// Init descriptors
 	// create a descriptor pool that will hold 10 uniform buffers
-	std::vector<VkDescriptorPoolSize> sizes = { {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 10} };
+	std::vector<VkDescriptorPoolSize> sizes = { 
+												{VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 10},
+												{VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 10},
+												{VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 10}
+											  };
 	/* 
 	 * When creating a descriptor pool, you need to specify how many descriptors of each type you will need,
 	 * and what’s the maximum number of sets to allocate from it.
 	 */
-
+	// Descriptor Pool
 	VkDescriptorPoolCreateInfo descriptorPoolInfo = {};
 	descriptorPoolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
 	descriptorPoolInfo.maxSets = 10;
@@ -583,25 +649,58 @@ void Init(GLFWwindow* window)
 
 	vkCheck(vkCreateDescriptorPool(device, &descriptorPoolInfo, nullptr, &descriptorPool));
 
-	VkDescriptorSetLayoutBinding cameraBufferBinding;
-	cameraBufferBinding.binding = 0;
-	cameraBufferBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-	cameraBufferBinding.descriptorCount = 1;
-	cameraBufferBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+	// Camera set layout binding (uniform buffer)
+	VkDescriptorSetLayoutBinding cameraBufferBinding = DescriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 
+																				  VK_SHADER_STAGE_VERTEX_BIT, 
+																				  0);
 
+	// scene buffer
+	const size_t sceneParamBufferSize = frame_overlap * pad_uniform_buffer_size(sizeof(GPUSceneData));
+	VkBufferCreateInfo sceneBufferInfo = {};
+	sceneBufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+	sceneBufferInfo.size = sceneParamBufferSize;
+	sceneBufferInfo.usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
+
+
+	VmaAllocationCreateInfo vmaallocInfo = {};
+	vmaallocInfo.usage = VMA_MEMORY_USAGE_CPU_TO_GPU;
+
+	vkCheck(vmaCreateBuffer(allocator, &sceneBufferInfo, &vmaallocInfo,
+							&sceneParameterBuffer.buffer,
+							&sceneParameterBuffer.allocation,
+							nullptr));
+
+	// scene set layout binding (dynamic uniform buffer)
+	VkDescriptorSetLayoutBinding sceneBufferBinding = DescriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC,
+																		 VK_SHADER_STAGE_VERTEX_BIT |
+																		 VK_SHADER_STAGE_FRAGMENT_BIT,
+																		 1);
+
+	// Create set layout #0
+	VkDescriptorSetLayoutBinding bindings[] = { cameraBufferBinding, sceneBufferBinding };
 	VkDescriptorSetLayoutCreateInfo descriptorSetLayoutInfo = {};
 	descriptorSetLayoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-	descriptorSetLayoutInfo.bindingCount = 1;
-	descriptorSetLayoutInfo.pBindings = &cameraBufferBinding;
-
+	descriptorSetLayoutInfo.bindingCount = ARRAYSIZE(bindings);
+	descriptorSetLayoutInfo.pBindings = bindings;
 	vkCheck(vkCreateDescriptorSetLayout(device, &descriptorSetLayoutInfo, nullptr, &globalSetLayout));
+
+	// object set layout binding (storage buffer)
+	VkDescriptorSetLayoutBinding objectBinding = DescriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 
+																			VK_SHADER_STAGE_VERTEX_BIT, 
+																			0);
+
+	// Create set layout #1
+	VkDescriptorSetLayoutCreateInfo objectSetLayoutInfo = {};
+	objectSetLayoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+	objectSetLayoutInfo.bindingCount = 1;
+	objectSetLayoutInfo.pBindings = &objectBinding;
+	vkCheck(vkCreateDescriptorSetLayout(device, &objectSetLayoutInfo, nullptr, &objectSetLayout));
 
 	for (int i = 0; i < frame_overlap; i++)
 	{
+		// Uniform Buffer
 		VkBufferCreateInfo bufferInfo = {};
 		bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-		bufferInfo.pNext = nullptr;
-
 		bufferInfo.size = sizeof(GPUCameraData);
 		bufferInfo.usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
 
@@ -619,28 +718,75 @@ void Init(GLFWwindow* window)
 
 		frames[i].cameraBuffer = newBuffer;
 
-		VkDescriptorSetAllocateInfo descriptorSetAllocInfo = {};
-		descriptorSetAllocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-		descriptorSetAllocInfo.descriptorPool = descriptorPool;
-		descriptorSetAllocInfo.descriptorSetCount = 1;
-		descriptorSetAllocInfo.pSetLayouts = &globalSetLayout;
+		// Storage buffer
+		const int MAX_OBJECTS = 10000;
+		bufferInfo = {};
+		bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+		bufferInfo.size = sizeof(GPUObjectData) * MAX_OBJECTS;
+		bufferInfo.usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
 
-		vkCheck(vkAllocateDescriptorSets(device, &descriptorSetAllocInfo, &frames[i].globalDescriptor));
 
-		VkDescriptorBufferInfo descriptorBufferInfo = {};
-		descriptorBufferInfo.buffer = frames[i].cameraBuffer.buffer;
-		descriptorBufferInfo.offset = 0;
-		descriptorBufferInfo.range = sizeof(GPUCameraData);
+		vmaallocInfo = {};
+		vmaallocInfo.usage = VMA_MEMORY_USAGE_CPU_TO_GPU;
 
-		VkWriteDescriptorSet setWrite = {};
-		setWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-		setWrite.dstSet = frames[i].globalDescriptor;
-		setWrite.dstBinding = 0;
-		setWrite.descriptorCount = 1;
-		setWrite.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-		setWrite.pBufferInfo = &descriptorBufferInfo;
+		vkCheck(vmaCreateBuffer(allocator, &bufferInfo, &vmaallocInfo,
+								&newBuffer.buffer,
+								&newBuffer.allocation,
+								nullptr));
 
-		vkUpdateDescriptorSets(device, 1, &setWrite, 0, nullptr);
+		frames[i].objectBuffer = newBuffer;
+
+		// Allocate Descriptor sets
+		VkDescriptorSetAllocateInfo cameraDescriptorSetAllocInfo = {};
+		cameraDescriptorSetAllocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+		cameraDescriptorSetAllocInfo.descriptorPool = descriptorPool;
+		cameraDescriptorSetAllocInfo.descriptorSetCount = 1;
+		cameraDescriptorSetAllocInfo.pSetLayouts = &globalSetLayout;
+		vkCheck(vkAllocateDescriptorSets(device, &cameraDescriptorSetAllocInfo, &frames[i].globalDescriptorSet));
+
+		VkDescriptorSetAllocateInfo objectDescriptorSetAllocInfo = {};
+		objectDescriptorSetAllocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+		objectDescriptorSetAllocInfo.descriptorPool = descriptorPool;
+		objectDescriptorSetAllocInfo.descriptorSetCount = 1;
+		objectDescriptorSetAllocInfo.pSetLayouts = &objectSetLayout;
+		vkCheck(vkAllocateDescriptorSets(device, &objectDescriptorSetAllocInfo, &frames[i].objectDescriptorSet));
+
+		// Write into the camera descriptor buffer
+		VkDescriptorBufferInfo cameraBufferInfo = {};
+		cameraBufferInfo.buffer = frames[i].cameraBuffer.buffer;
+		cameraBufferInfo.offset = 0;
+		cameraBufferInfo.range = sizeof(GPUCameraData);
+
+		VkWriteDescriptorSet cameraWrite = WriteDescriptorBuffer(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+																 frames[i].globalDescriptorSet,
+																 &cameraBufferInfo,
+																 0);
+
+		// Write into the scene descriptor buffer
+		VkDescriptorBufferInfo sceneBufferInfo = {};
+		sceneBufferInfo.buffer = sceneParameterBuffer.buffer;
+		sceneBufferInfo.offset = 0;
+		sceneBufferInfo.range = sizeof(GPUSceneData);
+
+		VkWriteDescriptorSet sceneWrite = WriteDescriptorBuffer(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC,
+																 frames[i].globalDescriptorSet,
+																 &sceneBufferInfo,
+																 1);
+
+		// Write into the object descriptor buffer
+		VkDescriptorBufferInfo objectBufferInfo = {};
+		objectBufferInfo.buffer = frames[i].objectBuffer.buffer;
+		objectBufferInfo.offset = 0;
+		objectBufferInfo.range = sizeof(GPUObjectData);
+
+		VkWriteDescriptorSet objectWrite = WriteDescriptorBuffer(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+																frames[i].objectDescriptorSet,
+																&objectBufferInfo,
+																0);
+
+
+		VkWriteDescriptorSet setWrites[] = { cameraWrite, sceneWrite, objectWrite };
+		vkUpdateDescriptorSets(device, ARRAYSIZE(setWrites), setWrites, 0, nullptr);
 	}
 
 	// Init pipeline
@@ -730,12 +876,13 @@ void Init(GLFWwindow* window)
 	meshConstantRange.offset = 0;
 	meshConstantRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
 
+	VkDescriptorSetLayout layouts[] = { globalSetLayout, objectSetLayout };
 	VkPipelineLayoutCreateInfo pipelineLayoutInfo = {};
 	pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
 	pipelineLayoutInfo.pushConstantRangeCount = 1;
 	pipelineLayoutInfo.pPushConstantRanges = &meshConstantRange;
-	pipelineLayoutInfo.setLayoutCount = 1;
-	pipelineLayoutInfo.pSetLayouts = &globalSetLayout;
+	pipelineLayoutInfo.setLayoutCount = ARRAYSIZE(layouts);
+	pipelineLayoutInfo.pSetLayouts = layouts;
 
 	vkCheck(vkCreatePipelineLayout(device, &pipelineLayoutInfo, nullptr, &pipelineLayout));
 
@@ -806,34 +953,63 @@ void Render(GLFWwindow* window)
 	//calculate final mesh matrix
 	glm::mat4 meshMatrix = projection * view * model;
 	
+	// Uniform buffers
 	GPUCameraData cameraData;
 	cameraData.projection = projection;
 	cameraData.view = view;
 	cameraData.viewproj = projection * view;
 
-	void* data;
-	vmaMapMemory(allocator, GetCurrentFrame().cameraBuffer.allocation, &data);
-	memcpy(data, &cameraData, sizeof(GPUCameraData));
+	void* camData;
+	vmaMapMemory(allocator, GetCurrentFrame().cameraBuffer.allocation, &camData);
+	memcpy(camData, &cameraData, sizeof(GPUCameraData));
 	vmaUnmapMemory(allocator, GetCurrentFrame().cameraBuffer.allocation);
 
+	float framed = (frameNumber / 5500.f);
+	sceneParameters.ambientColor = { sin(framed),0,cos(framed),1 };
+	char* sceneData;
+	vmaMapMemory(allocator, sceneParameterBuffer.allocation, (void**)&sceneData);
+	int frameI = frameNumber % frame_overlap;
+	sceneData += pad_uniform_buffer_size(sizeof(GPUSceneData)) * frameI;
+	memcpy(sceneData, &sceneParameters, sizeof(GPUSceneData));
+	vmaUnmapMemory(allocator, sceneParameterBuffer.allocation);
+
+	// Begin Render pass
 	vkCmdBeginRenderPass(GetCurrentFrame().mainCommandBuffer, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
 	vkCmdBindPipeline(GetCurrentFrame().mainCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline);
 
 	VkDeviceSize offset = { 0 };
 	vkCmdBindVertexBuffers(GetCurrentFrame().mainCommandBuffer, 0, 1, &monkeyMesh.vertexBuffer.buffer, &offset);
 
+	//offset for our scene buffer
+	uint32_t uniform_offset = pad_uniform_buffer_size(sizeof(GPUSceneData)) * frameI;
+	// Bind global descriptor set (descriptor set #0)
 	vkCmdBindDescriptorSets(GetCurrentFrame().mainCommandBuffer, 
 							VK_PIPELINE_BIND_POINT_GRAPHICS, 
 							pipelineLayout, 
 							0, 1,
-							&GetCurrentFrame().globalDescriptor,
+							&GetCurrentFrame().globalDescriptorSet,
+							1, &uniform_offset);
+
+	// Storage buffer
+	void* objectData;
+	vmaMapMemory(allocator, GetCurrentFrame().objectBuffer.allocation, &objectData);
+	GPUObjectData* objectSSBO = (GPUObjectData*)objectData;
+	objectSSBO->modelMatrix = model;
+	vmaUnmapMemory(allocator, GetCurrentFrame().objectBuffer.allocation);
+
+	// Bind object descriptor set (descriptor set #1)
+	vkCmdBindDescriptorSets(GetCurrentFrame().mainCommandBuffer,
+							VK_PIPELINE_BIND_POINT_GRAPHICS,
+							pipelineLayout,
+							1, 1,
+							&GetCurrentFrame().objectDescriptorSet,
 							0, nullptr);
 
-
+	// Push Constant
 	MeshPushConstants constants;
 	constants.renderMatrix = model;
-
 	vkCmdPushConstants(GetCurrentFrame().mainCommandBuffer, pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(MeshPushConstants), &constants);
+
 
 	vkCmdDraw(GetCurrentFrame().mainCommandBuffer, monkeyMesh.vertices.size(), 1, 0, 0);
 
@@ -906,8 +1082,11 @@ int main()
 		vkDestroySemaphore(device, frames[i].presentSemaphore, nullptr);
 		vkDestroyFence(device, frames[i].renderFence, nullptr);
 		vmaDestroyBuffer(allocator, frames[i].cameraBuffer.buffer, frames[i].cameraBuffer.allocation);
+		vmaDestroyBuffer(allocator, frames[i].objectBuffer.buffer, frames[i].objectBuffer.allocation);
 	}
+	vmaDestroyBuffer(allocator, sceneParameterBuffer.buffer, sceneParameterBuffer.allocation);
 	vkDestroyDescriptorPool(device, descriptorPool, nullptr);
+	vkDestroyDescriptorSetLayout(device, objectSetLayout, nullptr);
 	vkDestroyDescriptorSetLayout(device, globalSetLayout, nullptr);
 	vmaDestroyAllocator(allocator);
 	vkDestroySwapchainKHR(device, swapchain, nullptr);
