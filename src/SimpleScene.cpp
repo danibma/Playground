@@ -18,6 +18,8 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb_image.h>
 
+#include <tinyobjloader/tiny_obj_loader.h>
+
 #pragma comment(lib, "d3d11.lib")
 #pragma comment(lib, "dxgi.lib")
 #pragma comment(lib, "d3dcompiler.lib")
@@ -67,12 +69,11 @@ struct constantBufferVS
 	glm::mat4 WorldMatrix;
 	glm::vec4 cameraPos;
 	glm::vec4 lightLocation;
-};
-constantBufferVS cbVS;
+} cbVS;
 
-glm::vec4 lightLocation(-5, 3, 0, 1);
+glm::vec4 lightLocation(-0, 15, 0, 1);
 
-glm::vec3 cameraPos = { 0, 0, -5 };
+glm::vec3 cameraPos = { 0, 15, 0 };
 glm::vec3 cameraFront = { 0, 0, 1 };
 glm::vec3 cameraTarget = { 0, 0, 0 };
 glm::vec3 cameraUp = { 0, 1, 0 };
@@ -127,6 +128,93 @@ void mouse_callback(GLFWwindow* window, double xpos, double ypos)
 	front.y = sin(glm::radians(pitch));
 	front.z = cos(glm::radians(yaw)) * cos(glm::radians(pitch));
 	cameraFront = glm::normalize(front);
+}
+
+struct Vertex
+{
+	glm::vec3 position;
+	glm::vec2 uv;
+	glm::vec3 normal;
+	glm::vec3 color;
+};
+
+std::vector<Vertex> vertices;
+
+bool loadFromObj(const char* file)
+{
+	//attrib will contain the vertex arrays of the file
+	tinyobj::attrib_t attrib;
+	//shapes contains the info for each separate object in the file
+	std::vector<tinyobj::shape_t> shapes;
+	//materials contains the information about the material of each shape, but we won't use it.
+	std::vector<tinyobj::material_t> materials;
+
+	//error and warning output from the load function
+	std::string warn;
+	std::string err;
+
+	tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err, file, nullptr);
+	if (!warn.empty())
+	{
+		std::cout << "WARN: " << warn << std::endl;
+	}
+
+	if (!err.empty())
+	{
+		std::cerr << err << std::endl;
+		return false;
+	}
+
+	// Loop over shapes
+	for (size_t s = 0; s < shapes.size(); s++)
+	{
+		// Loop over faces(polygon)
+		size_t indexOffset = 0;
+		for (size_t f = 0; f < shapes[s].mesh.num_face_vertices.size(); f++)
+		{
+			//hardcode loading to triangles
+			int fv = 3;
+
+			// Loop over vertices in the face
+			for (size_t v = 0; v < fv; v++)
+			{
+				// access to vertex
+				tinyobj::index_t idx = shapes[s].mesh.indices[indexOffset + v];
+
+				//vertex position
+				tinyobj::real_t vx = attrib.vertices[3 * idx.vertex_index + 0];
+				tinyobj::real_t vy = attrib.vertices[3 * idx.vertex_index + 1];
+				tinyobj::real_t vz = attrib.vertices[3 * idx.vertex_index + 2];
+				//vertex normal
+				tinyobj::real_t nx = attrib.normals[3 * idx.normal_index + 0];
+				tinyobj::real_t ny = attrib.normals[3 * idx.normal_index + 1];
+				tinyobj::real_t nz = attrib.normals[3 * idx.normal_index + 2];
+
+				if (idx.texcoord_index < 0) idx.texcoord_index = 0;
+				tinyobj::real_t ux = attrib.texcoords[2 * idx.texcoord_index + 0];
+				tinyobj::real_t uy = attrib.texcoords[2 * idx.texcoord_index + 1];
+
+				//copy it into our vertex
+				Vertex new_vert;
+				new_vert.position.x = vx;
+				new_vert.position.y = vy;
+				new_vert.position.z = vz;
+
+				new_vert.normal.x = nx;
+				new_vert.normal.y = ny;
+				new_vert.normal.z = nz;
+
+				//we are setting the vertex color as the vertex normal. This is just for display purposes
+				new_vert.uv.x = ux;
+				new_vert.uv.y = 1 - uy; //do the 1-y on the uv.y because Vulkan UV coordinates work like that.
+				new_vert.color = glm::vec3(nx, ny, nz);
+
+
+				vertices.push_back(new_vert);
+			}
+			indexOffset += fv;
+		}
+	}
 }
 
 void InitializeD3D11(HWND hwnd)
@@ -204,46 +292,7 @@ void InitializeD3D11(HWND hwnd)
 
 	check(device->CreateDepthStencilView(depthStencilBuffer, &depthStencilDesc, &depthStencilView));
 
-	struct Vertex
-	{
-		glm::vec3 position;
-		glm::vec3 color;
-	};
-
 	float aspectRatio = WIDTH / HEIGHT;
-
-	/*Vertex vertexData[3] = {
-							{ { 0.0f, 0.25f * aspectRatio, 0.0f }, { 1.0f, 0.0f, 0.0f } },
-							{ { 0.25f, -0.25f * aspectRatio, 0.0f }, { 0.0f, 1.0f, 0.0f } },
-							{ { -0.25f, -0.25f * aspectRatio, 0.0f }, { 0.0f, 0.0f, 1.0f } } };*/
-
-	/*float vertexData[] = {
-		// x, y, z | u, v
-		-1.0f,  1.0f, -1.0f, 1.0f, 0.0f,
-		 1.0f,  1.0f, -1.0f, 0.0f, 0.0f,
-		 1.0f,  1.0f,  1.0f, 0.0f, 1.0f,
-		-1.0f,  1.0f,  1.0f, 1.0f, 1.0f,
-		-1.0f, -1.0f, -1.0f, 0.0f, 0.0f,
-		 1.0f, -1.0f, -1.0f, 1.0f, 0.0f,
-		 1.0f, -1.0f,  1.0f, 1.0f, 1.0f,
-		-1.0f, -1.0f,  1.0f, 0.0f, 1.0f,
-		-1.0f, -1.0f,  1.0f, 0.0f, 1.0f,
-		-1.0f, -1.0f, -1.0f, 1.0f, 1.0f,
-		-1.0f,  1.0f, -1.0f, 1.0f, 0.0f,
-		-1.0f,  1.0f,  1.0f, 0.0f, 0.0f,
-		 1.0f, -1.0f,  1.0f, 1.0f, 1.0f,
-		 1.0f, -1.0f, -1.0f, 0.0f, 1.0f,
-		 1.0f,  1.0f, -1.0f, 0.0f, 0.0f,
-		 1.0f,  1.0f,  1.0f, 1.0f, 0.0f,
-		-1.0f, -1.0f, -1.0f, 0.0f, 1.0f,
-		 1.0f, -1.0f, -1.0f, 1.0f, 1.0f,
-		 1.0f,  1.0f, -1.0f, 1.0f, 0.0f,
-		-1.0f,  1.0f, -1.0f, 0.0f, 0.0f,
-		-1.0f, -1.0f,  1.0f, 1.0f, 1.0f,
-		 1.0f, -1.0f,  1.0f, 0.0f, 1.0f,
-		 1.0f,  1.0f,  1.0f, 0.0f, 0.0f,
-		-1.0f,  1.0f,  1.0f, 1.0f, 0.0f,
-	};*/
 
 	float vertexData[] = {
 		-1.0f, -1.0f, -1.0f, 0.0f, 1.0f, -1.0f, -1.0f, -1.0f,
@@ -277,16 +326,18 @@ void InitializeD3D11(HWND hwnd)
 		 1.0f, -1.0f,  1.0f, 1.0f, 1.0f,  1.0f, -1.0f,  1.0f,
 	};
 
-	stride = 8 * sizeof(float);
+	stride = (sizeof(glm::vec3) * 3) + (sizeof(glm::vec2));
 	offset = 0;
 
+	loadFromObj("assets/lost_empire.obj");
+
 	D3D11_BUFFER_DESC vertexBufferDesc = {};
-	vertexBufferDesc.ByteWidth = sizeof(vertexData);
+	vertexBufferDesc.ByteWidth = vertices.size() * sizeof(Vertex);
 	vertexBufferDesc.Usage = D3D11_USAGE_IMMUTABLE;
 	vertexBufferDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
 
 	D3D11_SUBRESOURCE_DATA vertexBufferData = {};
-	vertexBufferData.pSysMem = vertexData;
+	vertexBufferData.pSysMem = vertices.data();
 
 	check(device->CreateBuffer(&vertexBufferDesc, &vertexBufferData, &vertexBuffer));
 
@@ -329,7 +380,7 @@ void InitializeD3D11(HWND hwnd)
 
 	//Load cube texture
 	int twidth, theight, tchannels;
-	unsigned char* textureBytes = stbi_load("assets/wall.jpg", &twidth, &theight, &tchannels, 4);
+	unsigned char* textureBytes = stbi_load("assets/lost_empire-RGBA.png", &twidth, &theight, &tchannels, 4);
 	if (!textureBytes)
 	{
 		MessageBoxA(nullptr, "Failed to load texture", "Error!", MB_OK);
@@ -427,7 +478,7 @@ void InitializeD3D11(HWND hwnd)
 
 	device->CreatePixelShader(pixelShaderBlob->GetBufferPointer(), pixelShaderBlob->GetBufferSize(), nullptr, &pixelShader);
 
-	D3D11_INPUT_ELEMENT_DESC inputElements[3];
+	D3D11_INPUT_ELEMENT_DESC inputElements[4];
 	inputElements[0].SemanticName = "POSITION";
 	inputElements[0].SemanticIndex = 0;
 	inputElements[0].Format = DXGI_FORMAT_R32G32B32_FLOAT;
@@ -451,6 +502,14 @@ void InitializeD3D11(HWND hwnd)
 	inputElements[2].InputSlot = 0;
 	inputElements[2].InputSlotClass = D3D11_INPUT_PER_VERTEX_DATA;
 	inputElements[2].InstanceDataStepRate = 0;
+
+	inputElements[3].SemanticName = "COLOR";
+	inputElements[3].SemanticIndex = 0;
+	inputElements[3].Format = DXGI_FORMAT_R32G32B32_FLOAT;
+	inputElements[3].AlignedByteOffset = D3D11_APPEND_ALIGNED_ELEMENT;
+	inputElements[3].InputSlot = 0;
+	inputElements[3].InputSlotClass = D3D11_INPUT_PER_VERTEX_DATA;
+	inputElements[3].InstanceDataStepRate = 0;
 
 	device->CreateInputLayout(inputElements, ARRAYSIZE(inputElements), vertexShaderBlob->GetBufferPointer(), vertexShaderBlob->GetBufferSize(), &inputLayout);
 
@@ -519,7 +578,7 @@ void Render(GLFWwindow* window)
 
 	deviceContext->VSSetShader(vertexShader, nullptr, 0);
 
-	modelMatrix = glm::mat4(1.0f);
+	modelMatrix = glm::rotate(glm::mat4(1.0f), glm::radians(180.0f), glm::vec3(0.0f, 1.0f, 0.0f));
 	viewMatrix = glm::lookAtLH(cameraPos, cameraPos + cameraFront, cameraUp);
 	projectionMatrix = glm::perspectiveFovLH_ZO(glm::radians(fov), WIDTH, HEIGHT, 0.1f, 10000.0f);
 	cbVS.MVPMatrix = projectionMatrix * viewMatrix * modelMatrix;
@@ -546,10 +605,11 @@ void Render(GLFWwindow* window)
 
 	deviceContext->IASetIndexBuffer(indexBuffer, DXGI_FORMAT_R32_UINT, 0);
 
-	deviceContext->DrawIndexed(36, 0, 0);
+	//deviceContext->DrawIndexed(36, 0, 0);
+	deviceContext->Draw(vertices.size(), 0);
 
 	// Light
-	lightModelMatrix = glm::mat4(1.0f);
+	/*lightModelMatrix = glm::mat4(1.0f);
 	lightModelMatrix = glm::translate(lightModelMatrix, glm::vec3(lightLocation.x, lightLocation.y, lightLocation.z));
 	lightModelMatrix = glm::scale(lightModelMatrix, glm::vec3(0.3f, 0.3f, 0.3f));
 	modelMatrix = lightModelMatrix;
@@ -563,6 +623,7 @@ void Render(GLFWwindow* window)
 	deviceContext->VSSetConstantBuffers(0, 1, &constantBuffer);
 
 	deviceContext->DrawIndexed(36, 0, 0);
+*/
 
 	swapChain->Present(1, 0);
 }

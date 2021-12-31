@@ -1,45 +1,50 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
-    <Filter Include="external">
-      <UniqueIdentifier>{e125677b-2ad4-4d6c-8b6c-04e1b0b23a95}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="external\glfw">
-      <UniqueIdentifier>{bd06f81c-c5bd-41b7-8fdd-6ce0c72d4c07}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="external\glm">
-      <UniqueIdentifier>{abd5bed9-434b-43d9-acf1-c37c2d500864}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="src">
-      <UniqueIdentifier>{76089777-79ac-4aff-b580-d23fd687b280}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="src\shaders">
-      <UniqueIdentifier>{1890f32e-e26d-442b-bc3a-e63152dc8b62}</UniqueIdentifier>
-    </Filter>
+    <FxCompile Include="src\shaders\shader_dx11.hlsl">
+      <Filter>src\shaders</Filter>
+    </FxCompile>
+    <FxCompile Include="src\shaders\triangle_dx12.hlsl">
+      <Filter>src\shaders</Filter>
+    </FxCompile>
+    <FxCompile Include="src\shaders\vert.hlsl">
+      <Filter>src\shaders</Filter>
+    </FxCompile>
+    <FxCompile Include="src\shaders\frag.hlsl">
+      <Filter>src\shaders</Filter>
+    </FxCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="external\glfw\src\internal.h">
-      <Filter>external\glfw</Filter>
-    </ClInclude>
+    <ClCompile Include="src\dx11main.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\dxmain.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\vkmain.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="external\glm\glm\detail\glm.cpp">
+      <Filter>external\glm</Filter>
+    </ClCompile>
+    <ClCompile Include="src\SimpleScene.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="external\vkBoostrap\VkBootstrap.cpp">
+      <Filter>external\vkBoostrap</Filter>
+    </ClCompile>
+    <ClCompile Include="external\tinyobjloader\tiny_obj_loader.cc">
+      <Filter>external\tinyobjloader</Filter>
+    </ClCompile>
+    <ClCompile Include="src\vulkan_guide.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
     <ClInclude Include="external\glfw\include\GLFW\glfw3.h">
       <Filter>external\glfw</Filter>
     </ClInclude>
-    <ClInclude Include="external\glfw\src\egl_context.h">
-      <Filter>external\glfw</Filter>
-    </ClInclude>
-    <ClInclude Include="external\glfw\src\osmesa_context.h">
-      <Filter>external\glfw</Filter>
-    </ClInclude>
-    <ClInclude Include="external\glfw\src\wgl_context.h">
-      <Filter>external\glfw</Filter>
-    </ClInclude>
-    <ClInclude Include="external\glfw\src\win32_joystick.h">
-      <Filter>external\glfw</Filter>
-    </ClInclude>
-    <ClInclude Include="external\glfw\src\win32_platform.h">
-      <Filter>external\glfw</Filter>
-    </ClInclude>
-    <ClInclude Include="external\glfw\src\mappings.h">
+    <ClInclude Include="external\glfw\include\GLFW\glfw3native.h">
       <Filter>external\glfw</Filter>
     </ClInclude>
     <ClInclude Include="external\glm\glm\detail\_features.hpp">
@@ -75,10 +80,10 @@
     <ClInclude Include="external\glm\glm\gtx\color_encoding.hpp">
       <Filter>external\glm</Filter>
     </ClInclude>
-    <ClInclude Include="external\glm\glm\gtc\color_space.hpp">
+    <ClInclude Include="external\glm\glm\gtx\color_space.hpp">
       <Filter>external\glm</Filter>
     </ClInclude>
-    <ClInclude Include="external\glm\glm\gtx\color_space.hpp">
+    <ClInclude Include="external\glm\glm\gtc\color_space.hpp">
       <Filter>external\glm</Filter>
     </ClInclude>
     <ClInclude Include="external\glm\glm\gtx\color_space_YCoCg.hpp">
@@ -87,10 +92,10 @@
     <ClInclude Include="external\glm\glm\simd\common.h">
       <Filter>external\glm</Filter>
     </ClInclude>
-    <ClInclude Include="external\glm\glm\common.hpp">
+    <ClInclude Include="external\glm\glm\gtx\common.hpp">
       <Filter>external\glm</Filter>
     </ClInclude>
-    <ClInclude Include="external\glm\glm\gtx\common.hpp">
+    <ClInclude Include="external\glm\glm\common.hpp">
       <Filter>external\glm</Filter>
     </ClInclude>
     <ClInclude Include="external\glm\glm\gtx\compatibility.hpp">
@@ -174,13 +179,13 @@
     <ClInclude Include="external\glm\glm\simd\integer.h">
       <Filter>external\glm</Filter>
     </ClInclude>
-    <ClInclude Include="external\glm\glm\gtc\integer.hpp">
-      <Filter>external\glm</Filter>
-    </ClInclude>
     <ClInclude Include="external\glm\glm\gtx\integer.hpp">
       <Filter>external\glm</Filter>
     </ClInclude>
     <ClInclude Include="external\glm\glm\integer.hpp">
+      <Filter>external\glm</Filter>
+    </ClInclude>
+    <ClInclude Include="external\glm\glm\gtc\integer.hpp">
       <Filter>external\glm</Filter>
     </ClInclude>
     <ClInclude Include="external\glm\glm\gtx\intersect.hpp">
@@ -375,10 +380,10 @@
     <ClInclude Include="external\glm\glm\ext\matrix_relational.hpp">
       <Filter>external\glm</Filter>
     </ClInclude>
-    <ClInclude Include="external\glm\glm\gtc\matrix_transform.hpp">
+    <ClInclude Include="external\glm\glm\ext\matrix_transform.hpp">
       <Filter>external\glm</Filter>
     </ClInclude>
-    <ClInclude Include="external\glm\glm\ext\matrix_transform.hpp">
+    <ClInclude Include="external\glm\glm\gtc\matrix_transform.hpp">
       <Filter>external\glm</Filter>
     </ClInclude>
     <ClInclude Include="external\glm\glm\gtx\matrix_transform_2d.hpp">
@@ -414,10 +419,10 @@
     <ClInclude Include="external\glm\glm\simd\packing.h">
       <Filter>external\glm</Filter>
     </ClInclude>
-    <ClInclude Include="external\glm\glm\gtc\packing.hpp">
+    <ClInclude Include="external\glm\glm\packing.hpp">
       <Filter>external\glm</Filter>
     </ClInclude>
-    <ClInclude Include="external\glm\glm\packing.hpp">
+    <ClInclude Include="external\glm\glm\gtc\packing.hpp">
       <Filter>external\glm</Filter>
     </ClInclude>
     <ClInclude Include="external\glm\glm\gtx\perpendicular.hpp">
@@ -435,10 +440,10 @@
     <ClInclude Include="external\glm\glm\detail\qualifier.hpp">
       <Filter>external\glm</Filter>
     </ClInclude>
-    <ClInclude Include="external\glm\glm\gtx\quaternion.hpp">
+    <ClInclude Include="external\glm\glm\gtc\quaternion.hpp">
       <Filter>external\glm</Filter>
     </ClInclude>
-    <ClInclude Include="external\glm\glm\gtc\quaternion.hpp">
+    <ClInclude Include="external\glm\glm\gtx\quaternion.hpp">
       <Filter>external\glm</Filter>
     </ClInclude>
     <ClInclude Include="external\glm\glm\ext\quaternion_common.hpp">
@@ -549,10 +554,10 @@
     <ClInclude Include="external\glm\glm\trigonometric.hpp">
       <Filter>external\glm</Filter>
     </ClInclude>
-    <ClInclude Include="external\glm\glm\gtx\type_aligned.hpp">
+    <ClInclude Include="external\glm\glm\gtc\type_aligned.hpp">
       <Filter>external\glm</Filter>
     </ClInclude>
-    <ClInclude Include="external\glm\glm\gtc\type_aligned.hpp">
+    <ClInclude Include="external\glm\glm\gtx\type_aligned.hpp">
       <Filter>external\glm</Filter>
     </ClInclude>
     <ClInclude Include="external\glm\glm\detail\type_float.hpp">
@@ -804,22 +809,31 @@
     <ClInclude Include="external\glm\glm\gtx\wrap.hpp">
       <Filter>external\glm</Filter>
     </ClInclude>
-    <ClInclude Include="external\glfw\include\GLFW\glfw3native.h">
-      <Filter>external\glfw</Filter>
-    </ClInclude>
-    <ClInclude Include="src\d3dx12.h">
-      <Filter>src</Filter>
-    </ClInclude>
     <ClInclude Include="external\stb_image.h">
       <Filter>external</Filter>
     </ClInclude>
+    <ClInclude Include="src\shaders\vulkan.hlsl">
+      <Filter>src\shaders</Filter>
+    </ClInclude>
+    <ClInclude Include="external\vkBoostrap\VkBootstrap.h">
+      <Filter>external\vkBoostrap</Filter>
+    </ClInclude>
+    <ClInclude Include="external\vkBoostrap\VkBootstrapDispatch.h">
+      <Filter>external\vkBoostrap</Filter>
+    </ClInclude>
+    <ClInclude Include="external\VulkanMemoryAllocator\vk_mem_alloc.h">
+      <Filter>external\VulkanMemoryAllocator</Filter>
+    </ClInclude>
+    <ClInclude Include="external\tinyobjloader\tiny_obj_loader.h">
+      <Filter>external\tinyobjloader</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <None Include="external\glfw\src\glfw.rc.in">
-      <Filter>external\glfw</Filter>
+    <None Include="src\shaders\triangle.frag.glsl">
+      <Filter>src\shaders</Filter>
     </None>
-    <None Include="external\glfw\src\glfw_config.h.in">
-      <Filter>external\glfw</Filter>
+    <None Include="src\shaders\triangle.vert.glsl">
+      <Filter>src\shaders</Filter>
     </None>
     <None Include="external\glm\glm\gtx\associated_min_max.inl">
       <Filter>external\glm</Filter>
@@ -950,10 +964,10 @@
     <None Include="external\glm\glm\gtx\hash.inl">
       <Filter>external\glm</Filter>
     </None>
-    <None Include="external\glm\glm\gtc\integer.inl">
+    <None Include="external\glm\glm\gtx\integer.inl">
       <Filter>external\glm</Filter>
     </None>
-    <None Include="external\glm\glm\gtx\integer.inl">
+    <None Include="external\glm\glm\gtc\integer.inl">
       <Filter>external\glm</Filter>
     </None>
     <None Include="external\glm\glm\gtx\intersect.inl">
@@ -1004,10 +1018,10 @@
     <None Include="external\glm\glm\ext\matrix_relational.inl">
       <Filter>external\glm</Filter>
     </None>
-    <None Include="external\glm\glm\gtc\matrix_transform.inl">
+    <None Include="external\glm\glm\ext\matrix_transform.inl">
       <Filter>external\glm</Filter>
     </None>
-    <None Include="external\glm\glm\ext\matrix_transform.inl">
+    <None Include="external\glm\glm\gtc\matrix_transform.inl">
       <Filter>external\glm</Filter>
     </None>
     <None Include="external\glm\glm\gtx\matrix_transform_2d.inl">
@@ -1049,10 +1063,10 @@
     <None Include="external\glm\glm\gtx\projection.inl">
       <Filter>external\glm</Filter>
     </None>
-    <None Include="external\glm\glm\gtx\quaternion.inl">
+    <None Include="external\glm\glm\gtc\quaternion.inl">
       <Filter>external\glm</Filter>
     </None>
-    <None Include="external\glm\glm\gtc\quaternion.inl">
+    <None Include="external\glm\glm\gtx\quaternion.inl">
       <Filter>external\glm</Filter>
     </None>
     <None Include="external\glm\glm\ext\quaternion_common.inl">
@@ -1229,81 +1243,87 @@
     <None Include="external\glm\glm\gtx\wrap.inl">
       <Filter>external\glm</Filter>
     </None>
-    <None Include="external\glfw\src\mappings.h.in">
-      <Filter>external\glfw</Filter>
+    <None Include="assets\movel.obj">
+      <Filter>assets</Filter>
     </None>
-    <None Include="src\shaders\triangle.frag.glsl">
+    <None Include="assets\lost_empire.mtl">
+      <Filter>assets</Filter>
+    </None>
+    <None Include="assets\monkey_flat.mtl">
+      <Filter>assets</Filter>
+    </None>
+    <None Include="assets\monkey_smooth.mtl">
+      <Filter>assets</Filter>
+    </None>
+    <None Include="assets\lost_empire.obj">
+      <Filter>assets</Filter>
+    </None>
+    <None Include="assets\lost_empire-Alpha.png">
+      <Filter>assets</Filter>
+    </None>
+    <None Include="assets\lost_empire-RGB.png">
+      <Filter>assets</Filter>
+    </None>
+    <None Include="assets\lost_empire-RGBA.png">
+      <Filter>assets</Filter>
+    </None>
+    <None Include="assets\monkey_flat.obj">
+      <Filter>assets</Filter>
+    </None>
+    <None Include="assets\monkey_smooth.obj">
+      <Filter>assets</Filter>
+    </None>
+    <None Include="assets\lencol_base.png">
+      <Filter>assets</Filter>
+    </None>
+    <None Include="assets\lencol.obj">
+      <Filter>assets</Filter>
+    </None>
+    <None Include="assets\sponza.obj">
+      <Filter>assets</Filter>
+    </None>
+    <None Include="src\shaders\vkguide.hlsl">
       <Filter>src\shaders</Filter>
     </None>
-    <None Include="src\shaders\triangle.vert.glsl">
+    <None Include="src\shaders\simple_scene.hlsl">
       <Filter>src\shaders</Filter>
     </None>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="external\glfw\src\context.c">
-      <Filter>external\glfw</Filter>
-    </ClCompile>
-    <ClCompile Include="external\glfw\src\egl_context.c">
-      <Filter>external\glfw</Filter>
-    </ClCompile>
-    <ClCompile Include="external\glfw\src\init.c">
-      <Filter>external\glfw</Filter>
-    </ClCompile>
-    <ClCompile Include="external\glfw\src\input.c">
-      <Filter>external\glfw</Filter>
-    </ClCompile>
-    <ClCompile Include="external\glfw\src\monitor.c">
-      <Filter>external\glfw</Filter>
-    </ClCompile>
-    <ClCompile Include="external\glfw\src\osmesa_context.c">
-      <Filter>external\glfw</Filter>
-    </ClCompile>
-    <ClCompile Include="external\glfw\src\vulkan.c">
-      <Filter>external\glfw</Filter>
-    </ClCompile>
-    <ClCompile Include="external\glfw\src\window.c">
-      <Filter>external\glfw</Filter>
-    </ClCompile>
-    <ClCompile Include="external\glfw\src\wgl_context.c">
-      <Filter>external\glfw</Filter>
-    </ClCompile>
-    <ClCompile Include="external\glfw\src\win32_init.c">
-      <Filter>external\glfw</Filter>
-    </ClCompile>
-    <ClCompile Include="external\glfw\src\win32_joystick.c">
-      <Filter>external\glfw</Filter>
-    </ClCompile>
-    <ClCompile Include="external\glfw\src\win32_monitor.c">
-      <Filter>external\glfw</Filter>
-    </ClCompile>
-    <ClCompile Include="external\glfw\src\win32_thread.c">
-      <Filter>external\glfw</Filter>
-    </ClCompile>
-    <ClCompile Include="external\glfw\src\win32_time.c">
-      <Filter>external\glfw</Filter>
-    </ClCompile>
-    <ClCompile Include="external\glfw\src\win32_window.c">
-      <Filter>external\glfw</Filter>
-    </ClCompile>
-    <ClCompile Include="external\glm\glm\detail\glm.cpp">
-      <Filter>external\glm</Filter>
-    </ClCompile>
-    <ClCompile Include="src\dx11main.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="src\vkmain.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="src\dxmain.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
+    <Filter Include="external">
+      <UniqueIdentifier>{640d594a-1fc8-4de3-9fba-6f00889c95eb}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="external\glm">
+      <UniqueIdentifier>{d53ce307-836f-4899-9946-6a78124ab877}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="external\glfw">
+      <UniqueIdentifier>{481656e1-3b55-4ff3-bc1c-5c93bf6e1eb4}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="src">
+      <UniqueIdentifier>{d35876a3-f8b2-4b97-b454-bf48b5a2b624}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="src\shaders">
+      <UniqueIdentifier>{6877b8cb-8f75-48ec-b05c-3d13fe657867}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="external\vkBoostrap">
+      <UniqueIdentifier>{877ad84b-a232-47e8-ae22-5ca1cc4b559b}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="external\VulkanMemoryAllocator">
+      <UniqueIdentifier>{d683cd71-1afb-44ee-900b-7dcb8c7ce7b7}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="assets">
+      <UniqueIdentifier>{a415b2ba-8832-483e-8832-c84e3e3a9000}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="external\tinyobjloader">
+      <UniqueIdentifier>{a41baea3-e784-473e-8ac9-92ab810e3f79}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
-    <FxCompile Include="src\shaders\triangle_dx12.hlsl">
-      <Filter>src\shaders</Filter>
-    </FxCompile>
-    <FxCompile Include="src\shaders\shader_dx11.hlsl">
-      <Filter>src\shaders</Filter>
-    </FxCompile>
+    <Text Include="TODO.md" />
+  </ItemGroup>
+  <ItemGroup>
+    <Image Include="assets\movel_base.png">
+      <Filter>assets</Filter>
+    </Image>
   </ItemGroup>
 </Project>

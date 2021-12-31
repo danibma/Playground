@@ -13,9 +13,9 @@
   <PropertyGroup Label="Globals">
     <VCProjectVersion>16.0</VCProjectVersion>
     <ProjectGuid>{2F88F170-D8CF-435F-B890-59DFC1B7109E}</ProjectGuid>
-    <RootNamespace>GraphicsAPITest</RootNamespace>
+    <RootNamespace>Playground</RootNamespace>
     <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
-    <ProjectName>GraphicsAPITest</ProjectName>
+    <ProjectName>Playground</ProjectName>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
@@ -65,7 +65,7 @@
     <Link>
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>glfw3.lib;dxguid.lib;d3d12.lib;dxgi.lib;d3dcompiler.lib;vulkan-1.lib;shaderc_shared.lib;shaderc_util.lib;spirv-cross-core.lib;spirv-cross-glsl.lib;SPIRV-Tools.lib;VkLayer_utils.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>glfw3.lib;dxguid.lib;d3d12.lib;dxgi.lib;d3dcompiler.lib;vulkan-1.lib;shaderc_shared.lib;shaderc_util.lib;spirv-cross-core.lib;spirv-cross-glsl.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <DelayLoadDLLs>
       </DelayLoadDLLs>
     </Link>
@@ -80,11 +80,11 @@
       <ConformanceMode>true</ConformanceMode>
     </ClCompile>
     <Link>
-      <SubSystem>Windows</SubSystem>
+      <SubSystem>Console</SubSystem>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>vulkan-1.lib;glfw3.lib;dxguid.lib;d3d12.lib;dxgi.lib;d3dcompiler.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>glfw3.lib;dxguid.lib;d3d12.lib;dxgi.lib;d3dcompiler.lib;vulkan-1.lib;shaderc_shared.lib;shaderc_util.lib;spirv-cross-core.lib;spirv-cross-glsl.lib;SPIRV-Tools.lib;VkLayer_utils.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
@@ -503,26 +503,39 @@
     <FxCompile Include="src\shaders\frag.hlsl">
       <EntryPointName Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">ps_main</EntryPointName>
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Pixel</ShaderType>
+      <EntryPointName Condition="'$(Configuration)|$(Platform)'=='Release|x64'">ps_main</EntryPointName>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Pixel</ShaderType>
     </FxCompile>
     <FxCompile Include="src\shaders\shader_dx11.hlsl">
       <EntryPointName Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">vs_main</EntryPointName>
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Vertex</ShaderType>
       <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">5.0</ShaderModel>
+      <EntryPointName Condition="'$(Configuration)|$(Platform)'=='Release|x64'">vs_main</EntryPointName>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Vertex</ShaderType>
+      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Release|x64'">5.0</ShaderModel>
     </FxCompile>
-    <FxCompile Include="src\shaders\simple_scene.hlsl">
+    <None Include="src\shaders\simple_scene.hlsl">
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Vertex</ShaderType>
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Vertex</ShaderType>
       <EntryPointName Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">vs_main</EntryPointName>
       <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">5.0</ShaderModel>
-    </FxCompile>
+      <EntryPointName Condition="'$(Configuration)|$(Platform)'=='Release|x64'">vs_main</EntryPointName>
+      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Release|x64'">5.0</ShaderModel>
+      <FileType>Document</FileType>
+    </None>
     <FxCompile Include="src\shaders\triangle_dx12.hlsl">
       <EntryPointName Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">VSMain</EntryPointName>
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Vertex</ShaderType>
+      <EntryPointName Condition="'$(Configuration)|$(Platform)'=='Release|x64'">VSMain</EntryPointName>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Vertex</ShaderType>
     </FxCompile>
     <FxCompile Include="src\shaders\vert.hlsl">
       <EntryPointName Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">vs_main</EntryPointName>
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Vertex</ShaderType>
       <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">5.0</ShaderModel>
+      <EntryPointName Condition="'$(Configuration)|$(Platform)'=='Release|x64'">vs_main</EntryPointName>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Vertex</ShaderType>
+      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Release|x64'">5.0</ShaderModel>
     </FxCompile>
     <ClInclude Include="external\tinyobjloader\tiny_obj_loader.h" />
     <ClInclude Include="external\vkBoostrap\VkBootstrapDispatch.h" />
@@ -536,6 +549,9 @@
       </ShaderType>
       <FileType>Document</FileType>
     </ClInclude>
+    <None Include="src\shaders\vkguide.hlsl">
+      <FileType>Document</FileType>
+    </None>
   </ItemGroup>
   <ItemGroup>
     <Text Include="TODO.md" />
