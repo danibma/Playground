@@ -31,8 +31,12 @@
 #define VMA_IMPLEMENTATION
 #include "VulkanMemoryAllocator/vk_mem_alloc.h"
 
+#define TINYGLTF_IMPLEMENTATION
 #define STB_IMAGE_IMPLEMENTATION
-#include <stb_image.h>
+#define STB_IMAGE_WRITE_IMPLEMENTATION
+#define TINYGLTF_NOEXCEPTION // optional. disable exception handling.
+#define TINYGLTF_USE_CPP14
+#include "tiny_gltf.h"
 
 constexpr int width = 1600;
 constexpr int height = 900;
@@ -80,7 +84,8 @@ struct Mesh
 	std::vector<Vertex> vertices;
 	AllocatedBuffer vertexBuffer;
 
-	bool loadFromObj(const char* file);
+	bool loadFromObj(const char* file, const char* material_path);
+	bool loadFromGLTF(const char* file);
 };
 
 struct MeshPushConstants
@@ -336,7 +341,34 @@ VertexInputDescription Vertex::GetVertexDescription()
 	return description;
 }
 
-bool Mesh::loadFromObj(const char* file)
+bool Mesh::loadFromGLTF(const char* file)
+{
+	tinygltf::Model model;
+	tinygltf::TinyGLTF loader;
+	std::string err;
+	std::string warn;
+
+	bool ret = loader.LoadASCIIFromFile(&model, &err, &warn, file);
+	//bool ret = loader.LoadBinaryFromFile(&model, &err, &warn, argv[1]); // for binary glTF(.glb)
+
+	if (!warn.empty()) {
+		printf("Warn: %s\n", warn.c_str());
+	}
+
+	if (!err.empty()) {
+		printf("Err: %s\n", err.c_str());
+	}
+
+	if (!ret) {
+		printf("Failed to parse glTF\n");
+		return -1;
+	}
+
+	auto& gltf_mesh = model.meshes.at(0);
+	auto& gltf_primitive = gltf_mesh.primitives.at(0);
+}
+
+bool Mesh::loadFromObj(const char* file, const char* material_path = "")
 {
 	//attrib will contain the vertex arrays of the file
 	tinyobj::attrib_t attrib;
@@ -349,7 +381,7 @@ bool Mesh::loadFromObj(const char* file)
 	std::string warn;
 	std::string err;
 
-	tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err, file, nullptr);
+	tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err, file, material_path);
 	if (!warn.empty())
 	{
 		std::cout << "WARN: " << warn << std::endl;
@@ -390,8 +422,8 @@ bool Mesh::loadFromObj(const char* file)
 				tinyobj::real_t ux = attrib.texcoords[2 * idx.texcoord_index + 0];
 				tinyobj::real_t uy = attrib.texcoords[2 * idx.texcoord_index + 1];
 
-				//copy it into our vertex
 				Vertex new_vert;
+				//copy it into our vertex
 				new_vert.position.x = vx;
 				new_vert.position.y = vy;
 				new_vert.position.z = vz;
@@ -404,13 +436,15 @@ bool Mesh::loadFromObj(const char* file)
 				new_vert.uv.y = 1 - uy; //do the 1-y on the uv.y because Vulkan UV coordinates work like that.
 
 				//we are setting the vertex color as the vertex normal. This is just for display purposes
-				new_vert.color = new_vert.normal;
-
+				auto id = shapes[s].mesh.material_ids[f];
+				new_vert.color = glm::vec3(materials[id].diffuse[0], materials[id].diffuse[1], materials[id].diffuse[2]);
 
 				vertices.push_back(new_vert);
+
 			}
 			indexOffset += fv;
 		}
+
 	}
 }
 
@@ -642,8 +676,8 @@ void Init(GLFWwindow* window)
 
 	auto instanceResult = instanceBuilder.set_app_name("Vulkan")
 		.request_validation_layers(true)
-		.require_api_version(1, 1, 0)
-		.desire_api_version(1, 1, 0)
+		.require_api_version(1, 2, 0)
+		.desire_api_version(1, 2, 0)
 		.set_debug_messenger_severity(VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT)
 		.set_debug_messenger_type(VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT)
 		.set_debug_callback(debugCallback)
@@ -657,10 +691,14 @@ void Init(GLFWwindow* window)
 	glfwCreateWindowSurface(instance, window, nullptr, &surface);
 
 	vkb::PhysicalDeviceSelector selector{ vkbInstance };
-	vkb::PhysicalDevice physicalDevice = selector.set_minimum_version(1, 1).set_surface(surface).select().value();
+	vkb::PhysicalDevice physicalDevice = selector.set_minimum_version(1, 2).set_surface(surface).select().value();
+
+	VkPhysicalDeviceVulkan11Features physicalDeviceVulkan11Features = {};
+	physicalDeviceVulkan11Features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_1_FEATURES;
+	physicalDeviceVulkan11Features.shaderDrawParameters = true;
 
 	vkb::DeviceBuilder deviceBuilder{ physicalDevice };
-	vkb::Device vkbDevice = deviceBuilder.build().value();
+	vkb::Device vkbDevice = deviceBuilder.add_pNext(&physicalDeviceVulkan11Features).build().value();
 
 	device = vkbDevice.device;
 	chosenGPU = physicalDevice.physical_device;
@@ -1044,7 +1082,8 @@ void Init(GLFWwindow* window)
 	triangleMesh.vertices[1].color = { 0.0f, 1.0f, 0.0f };
 	triangleMesh.vertices[2].color = { 0.0f, 0.0f, 1.0f };
 
-	monkeyMesh.loadFromObj("assets/lost_empire.obj");
+	monkeyMesh.loadFromObj("assets/gas_stations_fixed/gas_stations.obj", "assets/gas_stations_fixed/");
+	monkeyMesh.loadFromGLTF("assets/gas_stations_fixed/scene.gltf");
 
 	// Upload mesh
 	VkBufferCreateInfo stagingBufferInfo = {};
@@ -1324,7 +1363,7 @@ void Render(GLFWwindow* window)
 	//camera projection
 	glm::mat4 projection = glm::perspective(glm::radians(70.f), (float)width / (float)height, 0.1f, 1000.0f);
 	projection[1][1] *= -1;
-	glm::mat4 model = glm::translate(glm::mat4{ 1.0f }, glm::vec3{ 5, -12, -5 });
+	glm::mat4 model = glm::translate(glm::mat4{ 1.0f }, glm::vec3{ 5, -12, -5 }) * glm::scale(glm::mat4(1.0f), glm::vec3(0.08f, 0.08f, 0.08f));
 
 	//calculate final mesh matrix
 	glm::mat4 meshMatrix = projection * view * model;

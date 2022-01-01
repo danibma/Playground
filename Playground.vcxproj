@@ -21,7 +21,7 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>true</UseDebugLibraries>
-    <PlatformToolset>v142</PlatformToolset>
+    <PlatformToolset>v143</PlatformToolset>
     <CharacterSet>Unicode</CharacterSet>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
@@ -45,12 +45,12 @@
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <LinkIncremental>true</LinkIncremental>
-    <IncludePath>$(SolutionDir)external\;$(SolutionDir)external\glm;$(SolutionDir)external\glfw\include;$(VULKAN_SDK)\Include;$(IncludePath)</IncludePath>
+    <IncludePath>$(SolutionDir)external\;$(SolutionDir)external\glm;$(SolutionDir)external\glfw\include;$(VULKAN_SDK)\Include;$(SolutionDir)external\tinygltf;$(IncludePath)</IncludePath>
     <LibraryPath>$(VULKAN_SDK)\Lib;$(SolutionDir)external\glfw\lib;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <LinkIncremental>false</LinkIncremental>
-    <IncludePath>$(SolutionDir)external\;$(SolutionDir)external\glm;$(SolutionDir)external\glfw\include;$(VULKAN_SDK)\Include;$(IncludePath)</IncludePath>
+    <IncludePath>$(SolutionDir)external\;$(SolutionDir)external\glm;$(SolutionDir)external\glfw\include;$(VULKAN_SDK)\Include;$(SolutionDir)external\tinygltf;$(IncludePath)</IncludePath>
     <LibraryPath>$(VULKAN_SDK)\Lib;$(SolutionDir)external\glfw\lib;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
@@ -537,9 +537,13 @@
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Vertex</ShaderType>
       <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Release|x64'">5.0</ShaderModel>
     </FxCompile>
+    <ClInclude Include="external\tinygltf\json.hpp" />
+    <ClInclude Include="external\tinygltf\stb_image.h" />
+    <ClInclude Include="external\tinygltf\stb_image_write.h" />
+    <ClInclude Include="external\tinygltf\tiny_gltf.h" />
     <ClInclude Include="external\tinyobjloader\tiny_obj_loader.h" />
-    <ClInclude Include="external\vkBoostrap\VkBootstrapDispatch.h" />
     <ClInclude Include="external\vkBoostrap\VkBootstrap.h" />
+    <ClInclude Include="external\vkBoostrap\VkBootstrapDispatch.h" />
     <ClInclude Include="external\VulkanMemoryAllocator\vk_mem_alloc.h" />
     <ClInclude Include="src\shaders\vulkan.hlsl">
       <EntryPointName Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">vs_main</EntryPointName>

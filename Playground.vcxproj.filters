@@ -30,14 +30,14 @@
     <ClCompile Include="src\SimpleScene.cpp">
       <Filter>src</Filter>
     </ClCompile>
-    <ClCompile Include="external\vkBoostrap\VkBootstrap.cpp">
-      <Filter>external\vkBoostrap</Filter>
-    </ClCompile>
     <ClCompile Include="external\tinyobjloader\tiny_obj_loader.cc">
       <Filter>external\tinyobjloader</Filter>
     </ClCompile>
     <ClCompile Include="src\vulkan_guide.cpp">
       <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="external\vkBoostrap\VkBootstrap.cpp">
+      <Filter>external\vkBoostrap</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -815,17 +815,29 @@
     <ClInclude Include="src\shaders\vulkan.hlsl">
       <Filter>src\shaders</Filter>
     </ClInclude>
-    <ClInclude Include="external\vkBoostrap\VkBootstrap.h">
-      <Filter>external\vkBoostrap</Filter>
-    </ClInclude>
-    <ClInclude Include="external\vkBoostrap\VkBootstrapDispatch.h">
-      <Filter>external\vkBoostrap</Filter>
-    </ClInclude>
     <ClInclude Include="external\VulkanMemoryAllocator\vk_mem_alloc.h">
       <Filter>external\VulkanMemoryAllocator</Filter>
     </ClInclude>
     <ClInclude Include="external\tinyobjloader\tiny_obj_loader.h">
       <Filter>external\tinyobjloader</Filter>
+    </ClInclude>
+    <ClInclude Include="external\tinygltf\json.hpp">
+      <Filter>external\tinygltf</Filter>
+    </ClInclude>
+    <ClInclude Include="external\tinygltf\stb_image.h">
+      <Filter>external\tinygltf</Filter>
+    </ClInclude>
+    <ClInclude Include="external\tinygltf\stb_image_write.h">
+      <Filter>external\tinygltf</Filter>
+    </ClInclude>
+    <ClInclude Include="external\tinygltf\tiny_gltf.h">
+      <Filter>external\tinygltf</Filter>
+    </ClInclude>
+    <ClInclude Include="external\vkBoostrap\VkBootstrapDispatch.h">
+      <Filter>external\vkBoostrap</Filter>
+    </ClInclude>
+    <ClInclude Include="external\vkBoostrap\VkBootstrap.h">
+      <Filter>external\vkBoostrap</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
@@ -1305,9 +1317,6 @@
     <Filter Include="src\shaders">
       <UniqueIdentifier>{6877b8cb-8f75-48ec-b05c-3d13fe657867}</UniqueIdentifier>
     </Filter>
-    <Filter Include="external\vkBoostrap">
-      <UniqueIdentifier>{877ad84b-a232-47e8-ae22-5ca1cc4b559b}</UniqueIdentifier>
-    </Filter>
     <Filter Include="external\VulkanMemoryAllocator">
       <UniqueIdentifier>{d683cd71-1afb-44ee-900b-7dcb8c7ce7b7}</UniqueIdentifier>
     </Filter>
@@ -1316,6 +1325,12 @@
     </Filter>
     <Filter Include="external\tinyobjloader">
       <UniqueIdentifier>{a41baea3-e784-473e-8ac9-92ab810e3f79}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="external\tinygltf">
+      <UniqueIdentifier>{2fd2efa6-964c-47b4-b8f1-992178c03c0f}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="external\vkBoostrap">
+      <UniqueIdentifier>{61dfc4c0-8b48-4081-a800-282a62be41e5}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
