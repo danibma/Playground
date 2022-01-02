@@ -39,6 +39,27 @@
     <ClCompile Include="external\vkBoostrap\VkBootstrap.cpp">
       <Filter>external\vkBoostrap</Filter>
     </ClCompile>
+    <ClCompile Include="external\imgui\imgui.cpp">
+      <Filter>external\imgui</Filter>
+    </ClCompile>
+    <ClCompile Include="external\imgui\imgui_demo.cpp">
+      <Filter>external\imgui</Filter>
+    </ClCompile>
+    <ClCompile Include="external\imgui\imgui_draw.cpp">
+      <Filter>external\imgui</Filter>
+    </ClCompile>
+    <ClCompile Include="external\imgui\imgui_tables.cpp">
+      <Filter>external\imgui</Filter>
+    </ClCompile>
+    <ClCompile Include="external\imgui\imgui_widgets.cpp">
+      <Filter>external\imgui</Filter>
+    </ClCompile>
+    <ClCompile Include="external\imgui\imgui_impl_glfw.cpp">
+      <Filter>external\imgui</Filter>
+    </ClCompile>
+    <ClCompile Include="external\imgui\imgui_impl_vulkan.cpp">
+      <Filter>external\imgui</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="external\glfw\include\GLFW\glfw3.h">
@@ -809,9 +830,6 @@
     <ClInclude Include="external\glm\glm\gtx\wrap.hpp">
       <Filter>external\glm</Filter>
     </ClInclude>
-    <ClInclude Include="external\stb_image.h">
-      <Filter>external</Filter>
-    </ClInclude>
     <ClInclude Include="src\shaders\vulkan.hlsl">
       <Filter>src\shaders</Filter>
     </ClInclude>
@@ -838,6 +856,36 @@
     </ClInclude>
     <ClInclude Include="external\vkBoostrap\VkBootstrap.h">
       <Filter>external\vkBoostrap</Filter>
+    </ClInclude>
+    <ClInclude Include="external\imgui\imconfig.h">
+      <Filter>external\imgui</Filter>
+    </ClInclude>
+    <ClInclude Include="external\imgui\imgui.h">
+      <Filter>external\imgui</Filter>
+    </ClInclude>
+    <ClInclude Include="external\imgui\imgui_internal.h">
+      <Filter>external\imgui</Filter>
+    </ClInclude>
+    <ClInclude Include="external\imgui\imstb_rectpack.h">
+      <Filter>external\imgui</Filter>
+    </ClInclude>
+    <ClInclude Include="external\imgui\imstb_textedit.h">
+      <Filter>external\imgui</Filter>
+    </ClInclude>
+    <ClInclude Include="external\imgui\imstb_truetype.h">
+      <Filter>external\imgui</Filter>
+    </ClInclude>
+    <ClInclude Include="external\stb_image.h">
+      <Filter>external\imgui</Filter>
+    </ClInclude>
+    <ClInclude Include="external\imgui\imgui_impl_vulkan.h">
+      <Filter>external\imgui</Filter>
+    </ClInclude>
+    <ClInclude Include="external\imgui\imgui_impl_glfw.h">
+      <Filter>external\imgui</Filter>
+    </ClInclude>
+    <ClInclude Include="src\helper.h">
+      <Filter>src</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
@@ -1331,6 +1379,9 @@
     </Filter>
     <Filter Include="external\vkBoostrap">
       <UniqueIdentifier>{61dfc4c0-8b48-4081-a800-282a62be41e5}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="external\imgui">
+      <UniqueIdentifier>{c8d62701-ab0d-43f9-9a45-5cc26cc61eec}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>

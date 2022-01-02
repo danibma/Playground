@@ -344,6 +344,14 @@
     <ClInclude Include="external\glm\glm\vec3.hpp" />
     <ClInclude Include="external\glm\glm\vec4.hpp" />
     <ClInclude Include="external\glm\glm\vector_relational.hpp" />
+    <ClInclude Include="external\imgui\imconfig.h" />
+    <ClInclude Include="external\imgui\imgui.h" />
+    <ClInclude Include="external\imgui\imgui_impl_glfw.h" />
+    <ClInclude Include="external\imgui\imgui_impl_vulkan.h" />
+    <ClInclude Include="external\imgui\imgui_internal.h" />
+    <ClInclude Include="external\imgui\imstb_rectpack.h" />
+    <ClInclude Include="external\imgui\imstb_textedit.h" />
+    <ClInclude Include="external\imgui\imstb_truetype.h" />
     <ClInclude Include="external\stb_image.h" />
   </ItemGroup>
   <ItemGroup>
@@ -491,6 +499,13 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="external\glm\glm\detail\glm.cpp" />
+    <ClCompile Include="external\imgui\imgui.cpp" />
+    <ClCompile Include="external\imgui\imgui_demo.cpp" />
+    <ClCompile Include="external\imgui\imgui_draw.cpp" />
+    <ClCompile Include="external\imgui\imgui_impl_glfw.cpp" />
+    <ClCompile Include="external\imgui\imgui_impl_vulkan.cpp" />
+    <ClCompile Include="external\imgui\imgui_tables.cpp" />
+    <ClCompile Include="external\imgui\imgui_widgets.cpp" />
     <ClCompile Include="external\tinyobjloader\tiny_obj_loader.cc" />
     <ClCompile Include="external\vkBoostrap\VkBootstrap.cpp" />
     <ClCompile Include="src\SimpleScene.cpp" />
@@ -545,6 +560,7 @@
     <ClInclude Include="external\vkBoostrap\VkBootstrap.h" />
     <ClInclude Include="external\vkBoostrap\VkBootstrapDispatch.h" />
     <ClInclude Include="external\VulkanMemoryAllocator\vk_mem_alloc.h" />
+    <ClInclude Include="src\helper.h" />
     <ClInclude Include="src\shaders\vulkan.hlsl">
       <EntryPointName Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">vs_main</EntryPointName>
       <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">

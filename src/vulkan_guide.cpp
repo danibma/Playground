@@ -2,6 +2,10 @@
 
 #include <assert.h>
 
+#include <imgui/imgui.h>
+#include <imgui/imgui_impl_glfw.h>
+#include <imgui/imgui_impl_vulkan.h>
+
 #define GLFW_INCLUDE_VULKAN
 #define GLFW_EXPOSE_NATIVE_WIN32
 #include <glfw/glfw3.h>
@@ -31,12 +35,19 @@
 #define VMA_IMPLEMENTATION
 #include "VulkanMemoryAllocator/vk_mem_alloc.h"
 
+#include "helper.h"
+
 #define TINYGLTF_IMPLEMENTATION
 #define STB_IMAGE_IMPLEMENTATION
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #define TINYGLTF_NOEXCEPTION // optional. disable exception handling.
 #define TINYGLTF_USE_CPP14
 #include "tiny_gltf.h"
+
+//#define IMGUI_UNLIMITED_FRAME_RATE
+#ifdef _DEBUG
+#define IMGUI_VULKAN_DEBUG_REPORT
+#endif
 
 constexpr int width = 1600;
 constexpr int height = 900;
@@ -145,6 +156,8 @@ struct Texture {
 	AllocatedImage image;
 	VkImageView imageView;
 };
+
+ImDrawData* draw_data;
 
 VkPhysicalDeviceProperties gpuProperties;
 VkInstance instance; // Vulkan library handle
@@ -1532,6 +1545,9 @@ void Render(GLFWwindow* window)
 
 	vkCmdDraw(GetCurrentFrame().mainCommandBuffer, monkeyMesh.vertices.size(), 1, 0, 0);
 
+	// Record dear imgui primitives into command buffer
+	ImGui_ImplVulkan_RenderDrawData(draw_data, GetCurrentFrame().mainCommandBuffer);
+
 	vkCmdEndRenderPass(GetCurrentFrame().mainCommandBuffer);
 	vkCheck(vkEndCommandBuffer(GetCurrentFrame().mainCommandBuffer));
 
@@ -1577,31 +1593,107 @@ int main()
 	int frameCount = 0;
 	double previousTime = glfwGetTime();
 
+
+	// Setup Dear ImGui context
+	IMGUI_CHECKVERSION();
+	ImGui::CreateContext();
+	ImGuiIO& io = ImGui::GetIO(); (void)io;
+	io.ConfigFlags |= ImGuiConfigFlags_NoMouseCursorChange;
+	//io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;     // Enable Keyboard Controls
+	//io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;      // Enable Gamepad Controls
+
+	// Setup Dear ImGui style
+	ImGui::StyleColorsDark();
+	//ImGui::StyleColorsClassic();
+
+	// Setup Platform/Renderer backends
+	ImGui_ImplGlfw_InitForVulkan(window, true);
+	ImGui_ImplVulkan_InitInfo init_info = {};
+	init_info.Instance = instance;
+	init_info.PhysicalDevice = chosenGPU;
+	init_info.Device = device;
+	init_info.QueueFamily = graphicsQueueFamily;
+	init_info.Queue = graphicsQueue;
+	init_info.PipelineCache = nullptr;
+	init_info.DescriptorPool = descriptorPool;
+	init_info.Allocator = nullptr;
+	init_info.MinImageCount = 2;
+	init_info.ImageCount = 3;
+	init_info.CheckVkResultFn = nullptr;
+	ImGui_ImplVulkan_Init(&init_info, renderPass);
+
+	// Upload Fonts
+	{
+		// Use any command queue
+		VkCommandPool command_pool = GetCurrentFrame().commandPool;
+		VkCommandBuffer command_buffer = GetCurrentFrame().mainCommandBuffer;
+
+		vkCheck(vkResetCommandPool(device, command_pool, 0));
+		VkCommandBufferBeginInfo begin_info = {};
+		begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+		begin_info.flags |= VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+		vkCheck(vkBeginCommandBuffer(command_buffer, &begin_info));
+
+		ImGui_ImplVulkan_CreateFontsTexture(command_buffer);
+
+		VkSubmitInfo end_info = {};
+		end_info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+		end_info.commandBufferCount = 1;
+		end_info.pCommandBuffers = &command_buffer;
+		vkCheck(vkEndCommandBuffer(command_buffer));
+		vkCheck(vkQueueSubmit(graphicsQueue, 1, &end_info, VK_NULL_HANDLE));
+
+		vkCheck(vkDeviceWaitIdle(device));
+		ImGui_ImplVulkan_DestroyFontUploadObjects();
+	}
+
+	bool open = true;
+	ImGuiWindowFlags window_flags = ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoNav;
+
+	float deltaTime = 0;
+
 	while (!glfwWindowShouldClose(window))
 	{
 		glfwPollEvents();
-
+		
 		// Measure speed
-		double currentTime = glfwGetTime();
-		frameCount++;
-		if (currentTime - previousTime >= 1.0)
+		deltaTime = float(std::max(0.0, Timer::elapsed() / 1000.0));
+		Timer::record();
+
+		// Imgui stuff
+		// Start the Dear ImGui frame
+		ImGui_ImplVulkan_NewFrame();
+		ImGui_ImplGlfw_NewFrame();
+		ImGui::NewFrame();
+
+		std::stringstream ss;
+		ss << "Vulkan -> " << std::setprecision(2) << deltaTime * 1000.0f << "ms";
+		glfwSetWindowTitle(window, ss.str().c_str());
+
+		if (ImGui::Begin("Example: Simple overlay", &open, window_flags))
 		{
-			std::stringstream ss;
-			ss << "Vulkan -> " << std::setprecision(2) << 1000.0 / double(frameCount) << "ms | " << frameCount << " FPS";
-			glfwSetWindowTitle(window, ss.str().c_str());
-			frameCount = 0;
-			previousTime += 1.0;
+			ImGui::Text("Render Time: %.1f ms", deltaTime * 1000.0f);
+			ImGui::Separator();
+			if (ImGui::Button("Reload Shaders"))
+			{
+				CreatePipeline();
+			}
 		}
+		ImGui::End();
 
 		if (glfwGetKey(window, GLFW_KEY_ESCAPE))
 			glfwSetWindowShouldClose(window, true);
-		if (glfwGetKey(window, GLFW_KEY_F5))
-			CreatePipeline();
 
+		ImGui::Render();
+		draw_data = ImGui::GetDrawData();
 		Render(window);
 	}
 
 	vkDeviceWaitIdle(device);
+
+	ImGui_ImplVulkan_Shutdown();
+	ImGui_ImplGlfw_Shutdown();
+	ImGui::DestroyContext();
 
 	vkDestroyDescriptorSetLayout(device, singleTextureSetLayout, nullptr);
 	vkDestroySampler(device, blockySampler, nullptr);
