@@ -1,14 +1,6 @@
 #version 460
 //! #extension GL_KHR_vulkan_glsl : enable
 
-layout (push_constant) uniform MaterialConstant
-{
-	vec3 ambient;
-	vec3 diffuse;
-	vec3 specular;
-	vec4 shininess;
-} Material;
-
 layout (location = 0) in vec3 inColor;
 layout (location = 1) in vec2 inTexCoord;
 layout (location = 2) in vec3 inNormal;
@@ -27,12 +19,12 @@ layout(set = 0, binding = 1) uniform  SceneData{
 	vec4 sunlightColor;
 } sceneData;
 
-/*layout(set = 3, binding = 0) uniform MaterialBuffer {
+layout(set = 3, binding = 0) uniform MaterialBuffer {
 	vec3 ambient;
 	vec3 diffuse;
 	vec3 specular;
 	vec4 shininess;
-} Material;*/
+} Material;
 
 void main()
 {

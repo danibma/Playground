@@ -94,7 +94,7 @@ struct MeshPushConstants
 	glm::mat4 renderMatrix;
 };
 
-struct MaterialPushConstant
+struct Material
 {
 	glm::vec4 ambient;
 	glm::vec4 diffuse;
@@ -185,6 +185,10 @@ UploadContext uploadContext;
 //std::unordered_map<std::string, Texture> loadedTextures;
 VkDescriptorSet textureSet{ VK_NULL_HANDLE };
 VkDescriptorSetLayout singleTextureSetLayout;
+Material material;
+AllocatedBuffer materialBuffer;
+VkDescriptorSet materialDescriptorSet{ VK_NULL_HANDLE };
+VkDescriptorSetLayout materialSetLayout;
 Texture lostEmpire;
 VkSampler blockySampler;
 
@@ -758,16 +762,11 @@ void CreatePipeline()
 	meshConstantRange.offset = 0;
 	meshConstantRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
 
-	VkPushConstantRange materialConstantRange;
-	materialConstantRange.size = sizeof(MaterialPushConstant);
-	materialConstantRange.offset = 0;
-	materialConstantRange.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
-
-	VkDescriptorSetLayout layouts[] = { globalSetLayout, objectSetLayout, singleTextureSetLayout };
+	VkDescriptorSetLayout layouts[] = { globalSetLayout, objectSetLayout, singleTextureSetLayout, materialSetLayout };
 	VkPipelineLayoutCreateInfo pipelineLayoutInfo = {};
 	pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-	pipelineLayoutInfo.pushConstantRangeCount = 1;
-	pipelineLayoutInfo.pPushConstantRanges = &materialConstantRange;
+	pipelineLayoutInfo.pushConstantRangeCount = 0;
+	pipelineLayoutInfo.pPushConstantRanges = nullptr;
 	pipelineLayoutInfo.setLayoutCount = ARRAYSIZE(layouts);
 	pipelineLayoutInfo.pSetLayouts = layouts;
 
@@ -1087,6 +1086,57 @@ void Init(GLFWwindow* window)
 	textureSetInfo.pBindings = &textureBind;
 
 	vkCheck(vkCreateDescriptorSetLayout(device, &textureSetInfo, nullptr, &singleTextureSetLayout));
+
+	// Create Material buffer
+	VkBufferCreateInfo materialBufferInfo = {};
+	materialBufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+	materialBufferInfo.size = sizeof(Material);
+	materialBufferInfo.usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
+
+	// Not using this because its already declared
+	//VmaAllocationCreateInfo vmaallocInfo = {};
+	//vmaallocInfo.usage = VMA_MEMORY_USAGE_CPU_TO_GPU;
+
+	vkCheck(vmaCreateBuffer(allocator, &materialBufferInfo, &vmaallocInfo,
+							&materialBuffer.buffer,
+							&materialBuffer.allocation,
+							nullptr));
+
+	// Material set layout binding (dynamic uniform buffer)
+	VkDescriptorSetLayoutBinding materialBufferBinding = DescriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC,
+																					VK_SHADER_STAGE_VERTEX_BIT |
+																					VK_SHADER_STAGE_FRAGMENT_BIT,
+																					0);
+	VkDescriptorSetLayoutCreateInfo materialSetLayoutInfo = {};
+	materialSetLayoutInfo.bindingCount = 1;
+	materialSetLayoutInfo.flags = 0;
+	materialSetLayoutInfo.pNext = nullptr;
+	materialSetLayoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+	materialSetLayoutInfo.pBindings = &materialBufferBinding;
+
+	vkCreateDescriptorSetLayout(device, &materialSetLayoutInfo, nullptr, &materialSetLayout);
+
+	VkDescriptorSetAllocateInfo materialSetAllocInfo = {};
+	materialSetAllocInfo.pNext = nullptr;
+	materialSetAllocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+	materialSetAllocInfo.descriptorPool = descriptorPool;
+	materialSetAllocInfo.descriptorSetCount = 1;
+	materialSetAllocInfo.pSetLayouts = &materialSetLayout;
+
+	vkAllocateDescriptorSets(device, &materialSetAllocInfo, &materialDescriptorSet);
+
+	// Write into the material descriptor buffer
+	VkDescriptorBufferInfo materialDescriptorBufferInfo = {};
+	materialDescriptorBufferInfo.buffer = materialBuffer.buffer;
+	materialDescriptorBufferInfo.offset = 0;
+	materialDescriptorBufferInfo.range = sizeof(Material);
+
+	VkWriteDescriptorSet materialWrite = WriteDescriptorBuffer(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC,
+															materialDescriptorSet,
+															&materialDescriptorBufferInfo,
+															0);
+
+	vkUpdateDescriptorSets(device, 1, &materialWrite, 0, nullptr);
 
 	for (int i = 0; i < frame_overlap; i++)
 	{
@@ -1454,19 +1504,30 @@ void Render(GLFWwindow* window)
 							&textureSet,
 							0, nullptr);
 
+	// Material Descriptor Set
+	Material materialConstants;
+	materialConstants.ambient = glm::vec4(1.0f, 0.5f, 0.31f, 1.0f);
+	materialConstants.diffuse = glm::vec4(1.0f, 0.5f, 0.31f, 1.0f);
+	materialConstants.specular = glm::vec4(0.5f, 0.5f, 0.5f, 1.0f);
+	materialConstants.shininess = glm::vec4(32.0f, 0.0f, 0.0f, 1.0f);
+	void* materialData;
+	vmaMapMemory(allocator, materialBuffer.allocation, &materialData);
+	memcpy(materialData, &materialConstants, sizeof(Material));
+	vmaUnmapMemory(allocator, materialBuffer.allocation);
+	uint32_t materialOffset = 0;
+	vkCmdBindDescriptorSets(GetCurrentFrame().mainCommandBuffer,
+							VK_PIPELINE_BIND_POINT_GRAPHICS,
+							pipelineLayout,
+							3, 1,
+							&materialDescriptorSet,
+							1, &materialOffset);
+
+
 
 	// Push Constant
 	MeshPushConstants constants;
 	constants.renderMatrix = model;
 	//vkCmdPushConstants(GetCurrentFrame().mainCommandBuffer, pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(MeshPushConstants), &constants);
-
-	// Push Constant
-	MaterialPushConstant materialConstants;
-	materialConstants.ambient = glm::vec4(1.0f, 0.5f, 0.31f, 1.0f);
-	materialConstants.diffuse = glm::vec4(1.0f, 0.5f, 0.31f, 1.0f);
-	materialConstants.specular = glm::vec4(0.5f, 0.5f, 0.5f, 1.0f);
-	materialConstants.shininess = glm::vec4(32.0f, 0.0f, 0.0f, 1.0f);
-	vkCmdPushConstants(GetCurrentFrame().mainCommandBuffer, pipelineLayout, VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(MaterialPushConstant), &materialConstants);
 
 
 	vkCmdDraw(GetCurrentFrame().mainCommandBuffer, monkeyMesh.vertices.size(), 1, 0, 0);
@@ -1549,6 +1610,7 @@ int main()
 	vkDestroyCommandPool(device, uploadContext.commandPool, nullptr);
 	vmaDestroyBuffer(allocator, triangleMesh.vertexBuffer.buffer, triangleMesh.vertexBuffer.allocation);
 	vmaDestroyBuffer(allocator, monkeyMesh.vertexBuffer.buffer, monkeyMesh.vertexBuffer.allocation);
+	vmaDestroyBuffer(allocator, materialBuffer.buffer, materialBuffer.allocation);
 	vmaDestroyImage(allocator, lostEmpire.image.image, lostEmpire.image.allocation);
 	vmaDestroyImage(allocator, depthImage.image, depthImage.allocation);
 	vkDestroyImageView(device, depthImageView, nullptr);
