@@ -113,6 +113,14 @@ struct Material
 	glm::vec4 shininess;
 };
 
+struct Light
+{
+	glm::vec4 position;
+	glm::vec4 ambient;
+	glm::vec4 diffuse;
+	glm::vec4 specular;
+};
+
 struct GPUCameraData
 {
 	glm::mat4 view;
@@ -200,8 +208,11 @@ VkDescriptorSet textureSet{ VK_NULL_HANDLE };
 VkDescriptorSetLayout singleTextureSetLayout;
 Material material;
 AllocatedBuffer materialBuffer;
-VkDescriptorSet materialDescriptorSet{ VK_NULL_HANDLE };
-VkDescriptorSetLayout materialSetLayout;
+Light light;
+AllocatedBuffer lightBuffer;
+glm::vec4 lightColor = {1.0f, 1.0f, 1.0f, 1.0f};
+VkDescriptorSet sceneDescriptorSet{ VK_NULL_HANDLE };
+VkDescriptorSetLayout sceneSetLayout;
 Texture lostEmpire;
 VkSampler blockySampler;
 
@@ -775,7 +786,7 @@ void CreatePipeline()
 	meshConstantRange.offset = 0;
 	meshConstantRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
 
-	VkDescriptorSetLayout layouts[] = { globalSetLayout, objectSetLayout, singleTextureSetLayout, materialSetLayout };
+	VkDescriptorSetLayout layouts[] = { globalSetLayout, objectSetLayout, singleTextureSetLayout, sceneSetLayout };
 	VkPipelineLayoutCreateInfo pipelineLayoutInfo = {};
 	pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
 	pipelineLayoutInfo.pushConstantRangeCount = 0;
@@ -1120,23 +1131,42 @@ void Init(GLFWwindow* window)
 																					VK_SHADER_STAGE_VERTEX_BIT |
 																					VK_SHADER_STAGE_FRAGMENT_BIT,
 																					0);
+	// Create Light buffer
+	VkBufferCreateInfo lightBufferInfo = {};
+	lightBufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+	lightBufferInfo.size = sizeof(Light);
+	lightBufferInfo.usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
+
+	vkCheck(vmaCreateBuffer(allocator, &lightBufferInfo, &vmaallocInfo,
+							&lightBuffer.buffer,
+							&lightBuffer.allocation,
+							nullptr));
+
+	// Create light descriptor set layout binding
+	VkDescriptorSetLayoutBinding lightBufferBinding = DescriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC,
+																					VK_SHADER_STAGE_VERTEX_BIT |
+																					VK_SHADER_STAGE_FRAGMENT_BIT,
+																					1);
+
+	// Create scene descriptor set layout
+	std::vector<VkDescriptorSetLayoutBinding> sceneBindings = { materialBufferBinding, lightBufferBinding };
 	VkDescriptorSetLayoutCreateInfo materialSetLayoutInfo = {};
-	materialSetLayoutInfo.bindingCount = 1;
+	materialSetLayoutInfo.bindingCount = sceneBindings.size();
 	materialSetLayoutInfo.flags = 0;
 	materialSetLayoutInfo.pNext = nullptr;
 	materialSetLayoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-	materialSetLayoutInfo.pBindings = &materialBufferBinding;
+	materialSetLayoutInfo.pBindings = sceneBindings.data();
+	vkCreateDescriptorSetLayout(device, &materialSetLayoutInfo, nullptr, &sceneSetLayout);
 
-	vkCreateDescriptorSetLayout(device, &materialSetLayoutInfo, nullptr, &materialSetLayout);
-
+	// Allocate scene Descriptor set
 	VkDescriptorSetAllocateInfo materialSetAllocInfo = {};
 	materialSetAllocInfo.pNext = nullptr;
 	materialSetAllocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
 	materialSetAllocInfo.descriptorPool = descriptorPool;
 	materialSetAllocInfo.descriptorSetCount = 1;
-	materialSetAllocInfo.pSetLayouts = &materialSetLayout;
+	materialSetAllocInfo.pSetLayouts = &sceneSetLayout;
 
-	vkAllocateDescriptorSets(device, &materialSetAllocInfo, &materialDescriptorSet);
+	vkAllocateDescriptorSets(device, &materialSetAllocInfo, &sceneDescriptorSet);
 
 	// Write into the material descriptor buffer
 	VkDescriptorBufferInfo materialDescriptorBufferInfo = {};
@@ -1145,11 +1175,23 @@ void Init(GLFWwindow* window)
 	materialDescriptorBufferInfo.range = sizeof(Material);
 
 	VkWriteDescriptorSet materialWrite = WriteDescriptorBuffer(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC,
-															materialDescriptorSet,
+															sceneDescriptorSet,
 															&materialDescriptorBufferInfo,
 															0);
 
-	vkUpdateDescriptorSets(device, 1, &materialWrite, 0, nullptr);
+	// Write into light descriptor buffer
+	VkDescriptorBufferInfo lightDescriptorBufferInfo = {};
+	lightDescriptorBufferInfo.buffer = lightBuffer.buffer;
+	lightDescriptorBufferInfo.offset = 0;
+	lightDescriptorBufferInfo.range = sizeof(Light);
+
+	VkWriteDescriptorSet lightWrite = WriteDescriptorBuffer(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC,
+															   sceneDescriptorSet,
+															   &lightDescriptorBufferInfo,
+															   1);
+
+	VkWriteDescriptorSet sceneWrites[] = { materialWrite, lightWrite };
+	vkUpdateDescriptorSets(device, ARRAYSIZE(sceneWrites), sceneWrites, 0, nullptr);
 
 	for (int i = 0; i < frame_overlap; i++)
 	{
@@ -1282,7 +1324,7 @@ void Init(GLFWwindow* window)
 	triangleMesh.vertices[1].color = { 0.0f, 1.0f, 0.0f };
 	triangleMesh.vertices[2].color = { 0.0f, 0.0f, 1.0f };
 
-	monkeyMesh.loadFromObj("assets/knot.obj", "assets/");
+	monkeyMesh.loadFromObj("assets/ice.obj", "assets/");
 	//monkeyMesh.loadFromGLTF("assets/gas_stations_fixed/scene.gltf");
 
 	// Upload mesh
@@ -1517,7 +1559,7 @@ void Render(GLFWwindow* window)
 							&textureSet,
 							0, nullptr);
 
-	// Material Descriptor Set
+	// Material
 	Material materialConstants;
 	materialConstants.ambient = glm::vec4(1.0f, 0.5f, 0.31f, 1.0f);
 	materialConstants.diffuse = glm::vec4(1.0f, 0.5f, 0.31f, 1.0f);
@@ -1527,15 +1569,25 @@ void Render(GLFWwindow* window)
 	vmaMapMemory(allocator, materialBuffer.allocation, &materialData);
 	memcpy(materialData, &materialConstants, sizeof(Material));
 	vmaUnmapMemory(allocator, materialBuffer.allocation);
-	uint32_t materialOffset = 0;
+
+	// Light
+	Light light;
+	light.diffuse = glm::vec4(glm::vec3(lightColor) * glm::vec3(0.5f), 1.0f);
+	light.ambient = glm::vec4(glm::vec3(light.diffuse) * glm::vec3(0.2f), 1.0f);
+	light.specular = { 1.0f, 1.0f, 1.0f, 1.0f };
+	void* lightData;
+	vmaMapMemory(allocator, lightBuffer.allocation, &lightData);
+	memcpy(lightData, &light, sizeof(Light));
+	vmaUnmapMemory(allocator, lightBuffer.allocation);
+
+	// Bind Scene Descriptor Set
+	uint32_t materialOffset[] = { 0, 0 };
 	vkCmdBindDescriptorSets(GetCurrentFrame().mainCommandBuffer,
 							VK_PIPELINE_BIND_POINT_GRAPHICS,
 							pipelineLayout,
 							3, 1,
-							&materialDescriptorSet,
-							1, &materialOffset);
-
-
+							&sceneDescriptorSet,
+							2, materialOffset);
 
 	// Push Constant
 	MeshPushConstants constants;
@@ -1648,7 +1700,7 @@ int main()
 	}
 
 	bool open = true;
-	ImGuiWindowFlags window_flags = ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoNav;
+	ImGuiWindowFlags window_flags = ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoNav | ImGuiWindowFlags_NoTitleBar;
 
 	float deltaTime = 0;
 
@@ -1670,7 +1722,7 @@ int main()
 		ss << "Vulkan -> " << std::setprecision(2) << deltaTime * 1000.0f << "ms";
 		glfwSetWindowTitle(window, ss.str().c_str());
 
-		if (ImGui::Begin("Example: Simple overlay", &open, window_flags))
+		if (ImGui::Begin("Playground", &open, window_flags))
 		{
 			ImGui::Text("Render Time: %.1f ms", deltaTime * 1000.0f);
 			ImGui::Separator();
@@ -1678,6 +1730,8 @@ int main()
 			{
 				CreatePipeline();
 			}
+			ImGui::Separator();
+			ImGui::ColorPicker4("##picker", (float*)&lightColor, ImGuiColorEditFlags_NoSidePreview | ImGuiColorEditFlags_NoSmallPreview);
 		}
 		ImGui::End();
 
@@ -1703,6 +1757,7 @@ int main()
 	vmaDestroyBuffer(allocator, triangleMesh.vertexBuffer.buffer, triangleMesh.vertexBuffer.allocation);
 	vmaDestroyBuffer(allocator, monkeyMesh.vertexBuffer.buffer, monkeyMesh.vertexBuffer.allocation);
 	vmaDestroyBuffer(allocator, materialBuffer.buffer, materialBuffer.allocation);
+	vmaDestroyBuffer(allocator, lightBuffer.buffer, lightBuffer.allocation);
 	vmaDestroyImage(allocator, lostEmpire.image.image, lostEmpire.image.allocation);
 	vmaDestroyImage(allocator, depthImage.image, depthImage.allocation);
 	vkDestroyImageView(device, depthImageView, nullptr);

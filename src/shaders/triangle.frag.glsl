@@ -26,6 +26,14 @@ layout(set = 3, binding = 0) uniform MaterialBuffer {
 	vec4 shininess;
 } Material;
 
+layout(set = 3, binding = 1) uniform Light {
+	vec3 position;
+  
+    vec3 ambient;
+    vec3 diffuse;
+    vec3 specular;
+} light;
+
 void main()
 {
 	vec3 lightColor = vec3(1.0f, 1.0f, 1.0f);
@@ -35,18 +43,18 @@ void main()
 
 	// Ambient Light
 	float ambientStrength = 0.1f;
-	vec3 ambientLight = lightColor * Material.ambient;
+	vec3 ambientLight = light.ambient * Material.ambient;
 
 	// Diffuse Light
 	float diff = max(dot(normal, lightDir), 0.0f);
-	vec3 diffuse = lightColor * (diff * Material.diffuse);
+	vec3 diffuse = light.diffuse * (diff * Material.diffuse);
 
 	// Specular Light
 	float specularStrength = 0.5f;
 	vec3 viewDir = normalize(inViewPos - inFragPos);
 	vec3 reflectDir = reflect(-lightDir, normal);
 	float spec = pow(max(dot(viewDir, reflectDir), 0.0f), Material.shininess.x);
-	vec3 specular = lightColor * (spec * Material.specular);
+	vec3 specular = light.specular * (spec * Material.specular);
 
 	//vec3 color = texture(tex1, inTexCoord).xyz;
 	vec3 color = (ambientLight + diffuse + specular);
