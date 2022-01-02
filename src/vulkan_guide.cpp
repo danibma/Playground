@@ -119,6 +119,8 @@ struct Light
 	glm::vec4 ambient;
 	glm::vec4 diffuse;
 	glm::vec4 specular;
+
+	glm::vec4 attenuation;
 };
 
 struct GPUCameraData
@@ -210,7 +212,6 @@ Material material;
 AllocatedBuffer materialBuffer;
 Light light;
 AllocatedBuffer lightBuffer;
-glm::vec4 lightColor = {1.0f, 1.0f, 1.0f, 1.0f};
 VkDescriptorSet sceneDescriptorSet{ VK_NULL_HANDLE };
 VkDescriptorSetLayout sceneSetLayout;
 Texture lostEmpire;
@@ -218,6 +219,14 @@ Texture diffuseTexture;
 Texture specularMap;
 Texture emissionMap;
 VkSampler blockySampler;
+
+// Light properties
+glm::vec4 lightColor = {1.0f, 1.0f, 1.0f, 1.0f};
+float diffuseStrength = 0.5f;
+float ambientStrength = 0.2f;
+float attenuationLinear = 0.09f;
+float attenuationQuadratic = 0.032f;
+glm::vec3 lightPosition = { 0.0f, -10.0f, 0.0f };
 
 void immediate_submit(std::function<void(VkCommandBuffer cmd)>&& function)
 {
@@ -1076,7 +1085,6 @@ void Init(GLFWwindow* window)
 
 	// scene set layout binding (dynamic uniform buffer)
 	VkDescriptorSetLayoutBinding sceneBufferBinding = DescriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC,
-																				 VK_SHADER_STAGE_VERTEX_BIT |
 																				 VK_SHADER_STAGE_FRAGMENT_BIT,
 																				 1);
 
@@ -1140,7 +1148,6 @@ void Init(GLFWwindow* window)
 
 	// Material set layout binding (dynamic uniform buffer)
 	VkDescriptorSetLayoutBinding materialBufferBinding = DescriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC,
-																					VK_SHADER_STAGE_VERTEX_BIT |
 																					VK_SHADER_STAGE_FRAGMENT_BIT,
 																					0);
 	// Create Light buffer
@@ -1156,7 +1163,6 @@ void Init(GLFWwindow* window)
 
 	// Create light descriptor set layout binding
 	VkDescriptorSetLayoutBinding lightBufferBinding = DescriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC,
-																					VK_SHADER_STAGE_VERTEX_BIT |
 																					VK_SHADER_STAGE_FRAGMENT_BIT,
 																					1);
 
@@ -1315,7 +1321,8 @@ void Init(GLFWwindow* window)
 	LoadFromImage("assets/container2_specular.png", specularMap.image);
 	VkImageViewCreateInfo specularMapImageInfo = ImageViewCreateInfo(VK_FORMAT_R8G8B8A8_SRGB, specularMap.image.image, VK_IMAGE_ASPECT_COLOR_BIT);
 	vkCreateImageView(device, &specularMapImageInfo, nullptr, &specularMap.imageView);
-	vkCreateSampler(device, &samplerInfo, nullptr, &blockySampler);
+	//VkSamplerCreateInfo samplerInfo = SamplerCreateInfo(VK_FILTER_NEAREST);
+	//vkCreateSampler(device, &samplerInfo, nullptr, &blockySampler); NOTE: not creating the again because im using the same sampler
 
 	VkDescriptorImageInfo specularMapDescriptorImageInfo;
 	specularMapDescriptorImageInfo.sampler = blockySampler;
@@ -1326,7 +1333,8 @@ void Init(GLFWwindow* window)
 	LoadFromImage("assets/container2_matrix.jpg", emissionMap.image);
 	VkImageViewCreateInfo emissionMapImageInfo = ImageViewCreateInfo(VK_FORMAT_R8G8B8A8_SRGB, emissionMap.image.image, VK_IMAGE_ASPECT_COLOR_BIT);
 	vkCreateImageView(device, &emissionMapImageInfo, nullptr, &emissionMap.imageView);
-	vkCreateSampler(device, &samplerInfo, nullptr, &blockySampler);
+	//VkSamplerCreateInfo samplerInfo = SamplerCreateInfo(VK_FILTER_NEAREST);
+	//vkCreateSampler(device, &samplerInfo, nullptr, &blockySampler); NOTE: not creating the again because im using the same sampler
 
 	VkDescriptorImageInfo emissionMapDescriptorImageInfo;
 	emissionMapDescriptorImageInfo.sampler = blockySampler;
@@ -1359,7 +1367,7 @@ void Init(GLFWwindow* window)
 	triangleMesh.vertices[1].color = { 0.0f, 1.0f, 0.0f };
 	triangleMesh.vertices[2].color = { 0.0f, 0.0f, 1.0f };
 
-	monkeyMesh.loadFromObj("assets/ice.obj", "assets/");
+	monkeyMesh.loadFromObj("assets/knot.obj", "assets/");
 	//monkeyMesh.loadFromGLTF("assets/gas_stations_fixed/scene.gltf");
 
 	// Upload mesh
@@ -1528,7 +1536,7 @@ void Render(GLFWwindow* window)
 	//camera projection
 	glm::mat4 projection = glm::perspective(glm::radians(70.f), (float)width / (float)height, 0.1f, 1000.0f);
 	projection[1][1] *= -1;
-	glm::mat4 model = glm::translate(glm::mat4{ 1.0f }, glm::vec3{ 5, -12, -5 }) * glm::scale(glm::mat4(1.0f), glm::vec3(0.3f, 0.3f, 0.3f));
+	glm::mat4 model = glm::translate(glm::mat4{ 1.0f }, glm::vec3{ 5, -12, -5 }) * glm::scale(glm::mat4(1.0f), glm::vec3(0.1f, 0.1f, 0.1f));
 
 	//calculate final mesh matrix
 	glm::mat4 meshMatrix = projection * view * model;
@@ -1606,10 +1614,11 @@ void Render(GLFWwindow* window)
 	vmaUnmapMemory(allocator, materialBuffer.allocation);
 
 	// Light
-	Light light;
-	light.diffuse = glm::vec4(glm::vec3(lightColor) * glm::vec3(0.5f), 1.0f);
-	light.ambient = glm::vec4(glm::vec3(light.diffuse) * glm::vec3(0.2f), 1.0f);
+	light.diffuse = glm::vec4(glm::vec3(lightColor) * glm::vec3(diffuseStrength), 1.0f);
+	light.ambient = glm::vec4(glm::vec3(light.diffuse) * glm::vec3(ambientStrength), 1.0f);
 	light.specular = { 1.0f, 1.0f, 1.0f, 1.0f };
+	light.attenuation = { 1.0f, attenuationLinear, attenuationQuadratic, 1.0f };
+	light.position = glm::vec4(lightPosition, 1.0f);
 	void* lightData;
 	vmaMapMemory(allocator, lightBuffer.allocation, &lightData);
 	memcpy(lightData, &light, sizeof(Light));
@@ -1735,7 +1744,7 @@ int main()
 	}
 
 	bool open = true;
-	ImGuiWindowFlags window_flags = ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoNav | ImGuiWindowFlags_NoTitleBar;
+	ImGuiWindowFlags window_flags = ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoNav;
 
 	float deltaTime = 0;
 
@@ -1757,7 +1766,7 @@ int main()
 		ss << "Vulkan -> " << std::setprecision(2) << deltaTime * 1000.0f << "ms";
 		glfwSetWindowTitle(window, ss.str().c_str());
 
-		if (ImGui::Begin("Playground", &open, window_flags))
+		if (ImGui::Begin("Playground", NULL, window_flags))
 		{
 			ImGui::Text("Render Time: %.1f ms", deltaTime * 1000.0f);
 			ImGui::Separator();
@@ -1766,7 +1775,27 @@ int main()
 				CreatePipeline();
 			}
 			ImGui::Separator();
-			ImGui::ColorPicker4("##picker", (float*)&lightColor, ImGuiColorEditFlags_NoSidePreview | ImGuiColorEditFlags_NoSmallPreview);
+			if (ImGui::CollapsingHeader("Light Properties", ImGuiTreeNodeFlags_DefaultOpen))
+			{
+				ImGui::Text("Light Color:");
+				ImGui::SameLine();
+				ImGui::ColorEdit4("##picker", (float*)&lightColor, ImGuiColorEditFlags_DisplayHex | ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_NoLabel);
+				ImGui::Text("Light Position:       ");
+				ImGui::SameLine();
+				ImGui::DragFloat3("##lightPosition", (float*)&lightPosition, 1.0f, 0.0f, 0.0f, "%.2f", 0);
+				ImGui::Text("Diffuse Strength:     ");
+				ImGui::SameLine();
+				ImGui::DragFloat("##diffuseStrength", &diffuseStrength, 0.1f, 0.0f, 1.0f, "%.3f", ImGuiSliderFlags_AlwaysClamp);
+				ImGui::Text("Ambient Strength:     ");
+				ImGui::SameLine();
+				ImGui::DragFloat("##ambientStrength", &ambientStrength, 0.1f, 0.0f, 1.0f, "%.3f", ImGuiSliderFlags_AlwaysClamp);
+				ImGui::Text("Attenuation Linear:   ");
+				ImGui::SameLine();
+				ImGui::DragFloat("##attenuationLinear", &attenuationLinear, 0.01f, 0.0f, 1.0f, "%.3f", ImGuiSliderFlags_AlwaysClamp);
+				ImGui::Text("Attenuation Quadratic:");
+				ImGui::SameLine();
+				ImGui::DragFloat("##attenuationQuadratic", &attenuationQuadratic, 0.01f, 0.0f, 1.0f, "%.3f", ImGuiSliderFlags_AlwaysClamp);
+			}
 		}
 		ImGui::End();
 
@@ -1784,6 +1813,7 @@ int main()
 	ImGui_ImplGlfw_Shutdown();
 	ImGui::DestroyContext();
 
+	vkDestroyDescriptorSetLayout(device, sceneSetLayout, nullptr);
 	vkDestroyDescriptorSetLayout(device, singleTextureSetLayout, nullptr);
 	vkDestroySampler(device, blockySampler, nullptr);
 	vkDestroyImageView(device, diffuseTexture.imageView, nullptr);

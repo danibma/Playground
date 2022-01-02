@@ -34,14 +34,16 @@ layout(set = 3, binding = 1) uniform Light {
     vec3 ambient;
     vec3 diffuse;
     vec3 specular;
+
+	vec3 attenuation; // x = constant, y = linear, z = quadratic
+
 } light;
 
 void main()
 {
 	vec3 lightColor = vec3(1.0f, 1.0f, 1.0f);
-	vec3 lightPos = vec3(0, -10, 0);
 	vec3 normal = normalize(inNormal);
-	vec3 lightDir = normalize(lightPos - inFragPos);
+	vec3 lightDir = normalize(light.position - inFragPos);
 
 	// Ambient
 	float ambientStrength = 0.1f;
@@ -59,9 +61,20 @@ void main()
 	vec3 specular = light.specular * spec * vec3(texture(specularMap, inTexCoord));
 
 	// Emissive
-	vec3 emission = texture(emissionMap, inTexCoord).rgb;
+	//vec3 emission = texture(emissionMap, inTexCoord).rgb;
+	vec3 emission = vec3(0.0f);
 
-	//vec3 color = texture(tex1, inTexCoord).xyz;
+	// Attenuation
+	float distance    = length(light.position - inFragPos);
+	float attenuation = 1.0 / 
+						(light.attenuation.x 
+						+ light.attenuation.y * distance 
+						+ light.attenuation.z * (distance * distance));    
+
+	ambientLight *= attenuation;
+	diffuse *= attenuation;
+	specular *= attenuation;
+
 	vec3 color = (ambientLight + diffuse + specular + emission);
 	outFragColor = vec4(color, 1.0f);
 }
