@@ -7,53 +7,17 @@
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 
-#include <vulkan/vulkan.h>
-#include <shaderc/shaderc.hpp>
+#include "Renderer.h"
 
 #include <vkBoostrap/VkBootstrap.h>
 
 #include <tinyobjloader/tiny_obj_loader.h>
 
-#define VMA_IMPLEMENTATION
-#include "VulkanMemoryAllocator/vk_mem_alloc.h"
-
 #include <iostream>
 
-// Utils
-#define vkCheck(x)														\
-		{ VkResult err = x;												\
-		if (err)														\
-		{																\
-			std::cout <<"Detected Vulkan error: " << err << std::endl;	\
-			__debugbreak();													\
-		}}
-
-static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(
-	VkDebugUtilsMessageSeverityFlagBitsEXT           messageSeverity,
-	VkDebugUtilsMessageTypeFlagsEXT                  messageTypes,
-	const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData,
-	void* pUserData)
-{
-
-	if (messageSeverity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT)
-	{
-		std::cout << "\033[1;33mWarning: " << pCallbackData->pMessageIdName << " : \033[0m" << pCallbackData->pMessage << std::endl;
-	}
-	else if (messageSeverity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT)
-	{
-		// NOTE: temporary fix because it shows a initial error because of a json in medal tv, idk why
-		if (!strstr(pCallbackData->pMessage, "medal"))
-			std::cerr << "\033[1;31mError: " << pCallbackData->pMessageIdName << " : \033[0m" << pCallbackData->pMessage << std::endl;
-	}
-	else
-	{
-		std::cerr << "\033[1;36mInfo: " << pCallbackData->pMessageIdName << " : \033[0m" << pCallbackData->pMessage << std::endl;
-	}
-
-	return VK_FALSE;
-}
-
 // Variables
+uint32_t width = 1600, height = 900;
+
 VkInstance instance;
 VkDebugUtilsMessengerEXT debugMessenger; // Vulkan debug output handle
 VkPhysicalDevice chosenGPU; // GPU chosen as the default device
@@ -65,9 +29,8 @@ std::vector<VkImage> swapchainImages;
 std::vector<VkImageView> swapchainImageViews;
 VkQueue graphicsQueue; //queue we will submit to
 uint32_t graphicsQueueFamily; //family of that queue
-VmaAllocator allocator;
-
-uint32_t width = 1600, height = 900;
+VkCommandPool commandPool;
+std::vector<VkCommandBuffer> commandBuffers;
 
 int main()
 {
@@ -122,7 +85,7 @@ int main()
 	vmaAllocatorInfo.device = device;
 	vmaAllocatorInfo.instance = instance;
 
-	vkCheck(vmaCreateAllocator(&vmaAllocatorInfo, &allocator));
+	vkCheck(vmaCreateAllocator(&vmaAllocatorInfo, &Renderer::allocator));
 
 	// Init swapchain
 	vkb::SwapchainBuilder swapchainBuilder{ physicalDevice, device, surface };
@@ -136,6 +99,12 @@ int main()
 	swapchainImages = vkbSwapchain.get_images().value();
 	swapchainImageViews = vkbSwapchain.get_image_views().value();
 	swapchainImageFormat = vkbSwapchain.image_format;
+
+	// Create Command pool
+	Renderer::CreateCommandPool(device, 0, graphicsQueueFamily, commandPool);
+	
+	// Create command buffers
+	Renderer::AllocateCommandBuffers(device, commandPool, 1, commandBuffers);
 
 	while (!glfwWindowShouldClose(window))
 	{

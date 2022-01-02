@@ -7,11 +7,15 @@ layout (location = 3) in vec3 vTexCoord;
 
 layout (location = 0) out vec3 outColor;
 layout (location = 1) out vec3 outTexCoord;
+layout (location = 2) out vec3 outNormal;
+layout (location = 3) out vec3 outFragPos;
+layout (location = 4) out vec3 outViewPos;
 
 layout(set = 0, binding = 0) uniform CameraBuffer {
 	mat4 view;
 	mat4 projection;
 	mat4 viewproj;
+	vec4 position;
 } cameraData;
 
 struct ObjectData{
@@ -22,11 +26,11 @@ layout(std140,set = 1, binding = 0) readonly buffer ObjectBuffer{
 	ObjectData objects[];
 } objectBuffer;
 
-layout (push_constant) uniform constants 
+/*layout (push_constant) uniform constants 
 {
 	vec4 data;
 	mat4 renderMatrix;
-} PushConstants;
+} PushConstants;*/
 
 void main() {
 	/*
@@ -45,4 +49,8 @@ void main() {
 	gl_Position = transformationMatrix * vec4(vPosition, 1.0f);
 	outColor = vColor;
 	outTexCoord = vTexCoord;
+	// Calculate this normal matrix in CPU, on a real app 'mat3(transpose(inverse(modelMatrix)))'
+	outNormal = mat3(transpose(inverse(modelMatrix))) * vNormal;
+	outFragPos = vec3(modelMatrix * vec4(vPosition, 1.0f));
+	outViewPos = vec3(cameraData.position);
 }

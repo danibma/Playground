@@ -32,5 +32,8 @@
     <ClInclude Include="..\external\vkBoostrap\VkBootstrap.h">
       <Filter>vkBoostrap</Filter>
     </ClInclude>
+    <ClInclude Include="Renderer.h">
+      <Filter>Source Files</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>
