@@ -214,6 +214,9 @@ glm::vec4 lightColor = {1.0f, 1.0f, 1.0f, 1.0f};
 VkDescriptorSet sceneDescriptorSet{ VK_NULL_HANDLE };
 VkDescriptorSetLayout sceneSetLayout;
 Texture lostEmpire;
+Texture diffuseTexture;
+Texture specularMap;
+Texture emissionMap;
 VkSampler blockySampler;
 
 void immediate_submit(std::function<void(VkCommandBuffer cmd)>&& function)
@@ -1098,16 +1101,25 @@ void Init(GLFWwindow* window)
 	vkCheck(vkCreateDescriptorSetLayout(device, &objectSetLayoutInfo, nullptr, &objectSetLayout));
 
 	// Create texture set layout #2
-	VkDescriptorSetLayoutBinding textureBind = DescriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 
+	VkDescriptorSetLayoutBinding diffuseMapBind = DescriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 
 																		  VK_SHADER_STAGE_FRAGMENT_BIT, 
 																		  0);
 
+	VkDescriptorSetLayoutBinding specularMapBind = DescriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+																		  VK_SHADER_STAGE_FRAGMENT_BIT,
+																		  1);
+
+	VkDescriptorSetLayoutBinding emissionMapBind = DescriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+																			  VK_SHADER_STAGE_FRAGMENT_BIT,
+																			  2);
+
+	VkDescriptorSetLayoutBinding textureBindings[] = { diffuseMapBind , specularMapBind, emissionMapBind };
 	VkDescriptorSetLayoutCreateInfo textureSetInfo = {};
-	textureSetInfo.bindingCount = 1;
 	textureSetInfo.flags = 0;
 	textureSetInfo.pNext = nullptr;
 	textureSetInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-	textureSetInfo.pBindings = &textureBind;
+	textureSetInfo.bindingCount = ARRAYSIZE(textureBindings);
+	textureSetInfo.pBindings = textureBindings;
 
 	vkCheck(vkCreateDescriptorSetLayout(device, &textureSetInfo, nullptr, &singleTextureSetLayout));
 
@@ -1287,32 +1299,55 @@ void Init(GLFWwindow* window)
 	}
 
 	// Init textures
-	LoadFromImage("assets/lost_empire-RGBA.png", lostEmpire.image);
-
-	VkImageViewCreateInfo lostEmpireImageInfo = ImageViewCreateInfo(VK_FORMAT_R8G8B8A8_SRGB, lostEmpire.image.image, VK_IMAGE_ASPECT_COLOR_BIT);
-	vkCreateImageView(device, &lostEmpireImageInfo, nullptr, &lostEmpire.imageView);
-
+	// Load Diffuse Map
+	LoadFromImage("assets/container2.png", diffuseTexture.image);
+	VkImageViewCreateInfo diffuseMapImageInfo = ImageViewCreateInfo(VK_FORMAT_R8G8B8A8_SRGB, diffuseTexture.image.image, VK_IMAGE_ASPECT_COLOR_BIT);
+	vkCreateImageView(device, &diffuseMapImageInfo, nullptr, &diffuseTexture.imageView);
 	VkSamplerCreateInfo samplerInfo = SamplerCreateInfo(VK_FILTER_NEAREST);
-
 	vkCreateSampler(device, &samplerInfo, nullptr, &blockySampler);
 
+	VkDescriptorImageInfo diffuseMapDescriptorImageInfo;
+	diffuseMapDescriptorImageInfo.sampler = blockySampler;
+	diffuseMapDescriptorImageInfo.imageView = diffuseTexture.imageView;
+	diffuseMapDescriptorImageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+
+	// Load specular Map
+	LoadFromImage("assets/container2_specular.png", specularMap.image);
+	VkImageViewCreateInfo specularMapImageInfo = ImageViewCreateInfo(VK_FORMAT_R8G8B8A8_SRGB, specularMap.image.image, VK_IMAGE_ASPECT_COLOR_BIT);
+	vkCreateImageView(device, &specularMapImageInfo, nullptr, &specularMap.imageView);
+	vkCreateSampler(device, &samplerInfo, nullptr, &blockySampler);
+
+	VkDescriptorImageInfo specularMapDescriptorImageInfo;
+	specularMapDescriptorImageInfo.sampler = blockySampler;
+	specularMapDescriptorImageInfo.imageView = specularMap.imageView;
+	specularMapDescriptorImageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+
+	// Load Emission Map
+	LoadFromImage("assets/container2_matrix.jpg", emissionMap.image);
+	VkImageViewCreateInfo emissionMapImageInfo = ImageViewCreateInfo(VK_FORMAT_R8G8B8A8_SRGB, emissionMap.image.image, VK_IMAGE_ASPECT_COLOR_BIT);
+	vkCreateImageView(device, &emissionMapImageInfo, nullptr, &emissionMap.imageView);
+	vkCreateSampler(device, &samplerInfo, nullptr, &blockySampler);
+
+	VkDescriptorImageInfo emissionMapDescriptorImageInfo;
+	emissionMapDescriptorImageInfo.sampler = blockySampler;
+	emissionMapDescriptorImageInfo.imageView = emissionMap.imageView;
+	emissionMapDescriptorImageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+
+	// Allocate Textures descriptor set
 	VkDescriptorSetAllocateInfo textureSetAllocInfo = {};
 	textureSetAllocInfo.pNext = nullptr;
 	textureSetAllocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
 	textureSetAllocInfo.descriptorPool = descriptorPool;
 	textureSetAllocInfo.descriptorSetCount = 1;
 	textureSetAllocInfo.pSetLayouts = &singleTextureSetLayout;
-
 	vkAllocateDescriptorSets(device, &textureSetAllocInfo, &textureSet);
 
-	VkDescriptorImageInfo imageBufferInfo;
-	imageBufferInfo.sampler = blockySampler;
-	imageBufferInfo.imageView = lostEmpire.imageView;
-	imageBufferInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+	VkWriteDescriptorSet diffuseMapDescriptorSet = WriteDescriptorImage(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, textureSet, &diffuseMapDescriptorImageInfo, 0);
+	VkWriteDescriptorSet specularMapDescriptorSet = WriteDescriptorImage(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, textureSet, &specularMapDescriptorImageInfo, 1);
+	VkWriteDescriptorSet emissionMapDescriptorSet = WriteDescriptorImage(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, textureSet, &emissionMapDescriptorImageInfo, 2);
 
-	VkWriteDescriptorSet texture1 = WriteDescriptorImage(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, textureSet, &imageBufferInfo, 0);
-
-	vkUpdateDescriptorSets(device, 1, &texture1, 0, nullptr);
+	VkWriteDescriptorSet textureDescriptorSets[] = { diffuseMapDescriptorSet, specularMapDescriptorSet, emissionMapDescriptorSet };
+	vkUpdateDescriptorSets(device, ARRAYSIZE(textureDescriptorSets), textureDescriptorSets, 0, nullptr);
 
 
 	// Init mesh
@@ -1493,7 +1528,7 @@ void Render(GLFWwindow* window)
 	//camera projection
 	glm::mat4 projection = glm::perspective(glm::radians(70.f), (float)width / (float)height, 0.1f, 1000.0f);
 	projection[1][1] *= -1;
-	glm::mat4 model = glm::translate(glm::mat4{ 1.0f }, glm::vec3{ 5, -12, -5 }) * glm::scale(glm::mat4(1.0f), glm::vec3(0.08f, 0.08f, 0.08f));
+	glm::mat4 model = glm::translate(glm::mat4{ 1.0f }, glm::vec3{ 5, -12, -5 }) * glm::scale(glm::mat4(1.0f), glm::vec3(0.3f, 0.3f, 0.3f));
 
 	//calculate final mesh matrix
 	glm::mat4 meshMatrix = projection * view * model;
@@ -1751,14 +1786,18 @@ int main()
 
 	vkDestroyDescriptorSetLayout(device, singleTextureSetLayout, nullptr);
 	vkDestroySampler(device, blockySampler, nullptr);
-	vkDestroyImageView(device, lostEmpire.imageView, nullptr);
+	vkDestroyImageView(device, diffuseTexture.imageView, nullptr);
+	vkDestroyImageView(device, specularMap.imageView, nullptr);
+	vkDestroyImageView(device, emissionMap.imageView, nullptr);
 	vkDestroyFence(device, uploadContext.uploadFence, nullptr);
 	vkDestroyCommandPool(device, uploadContext.commandPool, nullptr);
 	vmaDestroyBuffer(allocator, triangleMesh.vertexBuffer.buffer, triangleMesh.vertexBuffer.allocation);
 	vmaDestroyBuffer(allocator, monkeyMesh.vertexBuffer.buffer, monkeyMesh.vertexBuffer.allocation);
 	vmaDestroyBuffer(allocator, materialBuffer.buffer, materialBuffer.allocation);
 	vmaDestroyBuffer(allocator, lightBuffer.buffer, lightBuffer.allocation);
-	vmaDestroyImage(allocator, lostEmpire.image.image, lostEmpire.image.allocation);
+	vmaDestroyImage(allocator, diffuseTexture.image.image, diffuseTexture.image.allocation);
+	vmaDestroyImage(allocator, specularMap.image.image, specularMap.image.allocation);
+	vmaDestroyImage(allocator, emissionMap.image.image, emissionMap.image.allocation);
 	vmaDestroyImage(allocator, depthImage.image, depthImage.allocation);
 	vkDestroyImageView(device, depthImageView, nullptr);
 	vkDestroyShaderModule(device, vertexShaderModule, nullptr);

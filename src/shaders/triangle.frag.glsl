@@ -9,7 +9,9 @@ layout (location = 4) in vec3 inViewPos;
 
 layout (location = 0) out vec4 outFragColor;
 
-layout(set = 2, binding = 0) uniform sampler2D tex1;
+layout(set = 2, binding = 0) uniform sampler2D diffuseMap;
+layout(set = 2, binding = 1) uniform sampler2D specularMap;
+layout(set = 2, binding = 2) uniform sampler2D emissionMap;
 
 layout(set = 0, binding = 1) uniform  SceneData{   
     vec4 fogColor; // w is for exponent
@@ -41,22 +43,25 @@ void main()
 	vec3 normal = normalize(inNormal);
 	vec3 lightDir = normalize(lightPos - inFragPos);
 
-	// Ambient Light
+	// Ambient
 	float ambientStrength = 0.1f;
-	vec3 ambientLight = light.ambient * Material.ambient;
+	vec3 ambientLight = light.ambient * vec3(texture(diffuseMap, inTexCoord));
 
-	// Diffuse Light
+	// Diffuse
 	float diff = max(dot(normal, lightDir), 0.0f);
-	vec3 diffuse = light.diffuse * (diff * Material.diffuse);
+	vec3 diffuse = light.diffuse * diff * vec3(texture(diffuseMap, inTexCoord));
 
-	// Specular Light
+	// Specular
 	float specularStrength = 0.5f;
 	vec3 viewDir = normalize(inViewPos - inFragPos);
 	vec3 reflectDir = reflect(-lightDir, normal);
 	float spec = pow(max(dot(viewDir, reflectDir), 0.0f), Material.shininess.x);
-	vec3 specular = light.specular * (spec * Material.specular);
+	vec3 specular = light.specular * spec * vec3(texture(specularMap, inTexCoord));
+
+	// Emissive
+	vec3 emission = texture(emissionMap, inTexCoord).rgb;
 
 	//vec3 color = texture(tex1, inTexCoord).xyz;
-	vec3 color = (ambientLight + diffuse + specular);
+	vec3 color = (ambientLight + diffuse + specular + emission);
 	outFragColor = vec4(color, 1.0f);
 }
