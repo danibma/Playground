@@ -1,4 +1,4 @@
-﻿#if 1
+﻿#if 0
 
 #include <assert.h>
 
@@ -105,7 +105,7 @@ struct MeshPushConstants
 	glm::mat4 renderMatrix;
 };
 
-struct Material
+struct alignas(16) Material
 {
 	glm::vec4 ambient;
 	glm::vec4 diffuse;
@@ -113,7 +113,7 @@ struct Material
 	glm::vec4 shininess;
 };
 
-struct Light
+struct alignas(16) Light
 {
 	glm::vec4 position;
 	glm::vec4 ambient;
@@ -123,7 +123,7 @@ struct Light
 	glm::vec4 attenuation;
 };
 
-struct GPUCameraData
+struct alignas(16) GPUCameraData
 {
 	glm::mat4 view;
 	glm::mat4 projection;
@@ -205,7 +205,6 @@ VkDescriptorPool descriptorPool;
 GPUSceneData sceneParameters;
 AllocatedBuffer sceneParameterBuffer;
 UploadContext uploadContext;
-//std::unordered_map<std::string, Texture> loadedTextures;
 VkDescriptorSet textureSet{ VK_NULL_HANDLE };
 VkDescriptorSetLayout singleTextureSetLayout;
 Material material;

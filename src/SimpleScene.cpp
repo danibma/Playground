@@ -207,7 +207,13 @@ bool loadFromObj(const char* file)
 				//we are setting the vertex color as the vertex normal. This is just for display purposes
 				new_vert.uv.x = ux;
 				new_vert.uv.y = 1 - uy; //do the 1-y on the uv.y because Vulkan UV coordinates work like that.
-				new_vert.color = glm::vec3(nx, ny, nz);
+				
+				//we are setting the vertex color as the vertex normal. This is just for display purposes
+				auto id = shapes[s].mesh.material_ids[f];
+				if (id > -1)
+					new_vert.color = glm::vec3(materials[id].diffuse[0], materials[id].diffuse[1], materials[id].diffuse[2]);
+				else
+					new_vert.color = glm::vec3(1, 1, 1);
 
 
 				vertices.push_back(new_vert);
@@ -329,7 +335,7 @@ void InitializeD3D11(HWND hwnd)
 	stride = (sizeof(glm::vec3) * 3) + (sizeof(glm::vec2));
 	offset = 0;
 
-	loadFromObj("assets/lost_empire.obj");
+	loadFromObj("assets/knot.obj");
 
 	D3D11_BUFFER_DESC vertexBufferDesc = {};
 	vertexBufferDesc.ByteWidth = vertices.size() * sizeof(Vertex);
@@ -380,7 +386,7 @@ void InitializeD3D11(HWND hwnd)
 
 	//Load cube texture
 	int twidth, theight, tchannels;
-	unsigned char* textureBytes = stbi_load("assets/lost_empire-RGBA.png", &twidth, &theight, &tchannels, 4);
+	unsigned char* textureBytes = stbi_load("assets/container2.png", &twidth, &theight, &tchannels, 4);
 	if (!textureBytes)
 	{
 		MessageBoxA(nullptr, "Failed to load texture", "Error!", MB_OK);
@@ -578,7 +584,7 @@ void Render(GLFWwindow* window)
 
 	deviceContext->VSSetShader(vertexShader, nullptr, 0);
 
-	modelMatrix = glm::rotate(glm::mat4(1.0f), glm::radians(180.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+	modelMatrix = glm::translate(glm::mat4{ 1.0f }, glm::vec3{ 5, -12, -5 }) * glm::scale(glm::mat4(1.0f), glm::vec3(0.1f, 0.1f, 0.1f));;
 	viewMatrix = glm::lookAtLH(cameraPos, cameraPos + cameraFront, cameraUp);
 	projectionMatrix = glm::perspectiveFovLH_ZO(glm::radians(fov), WIDTH, HEIGHT, 0.1f, 10000.0f);
 	cbVS.MVPMatrix = projectionMatrix * viewMatrix * modelMatrix;
