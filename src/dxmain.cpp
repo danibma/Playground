@@ -1,4 +1,4 @@
-#if 1
+#if 0
 
 #include <stdio.h>
 
@@ -137,6 +137,10 @@ void Init(GLFWwindow* window)
 	frameIndex = swapChain->GetCurrentBackBufferIndex();
 
 	// Create descriptor heaps
+	/* While these work well enough,
+	 * using bindless resources is significantly more easy, 
+	 * Matt Pettineo(@MyNameIsMJP) wrote a blog postand chapter in Ray Tracing Gems 2 about this.
+	 */
 	{
 		D3D12_DESCRIPTOR_HEAP_DESC rtvDescriptorHeapDesc = {};
 		rtvDescriptorHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
@@ -162,16 +166,26 @@ void Init(GLFWwindow* window)
 	// Create command allocator
 	device->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&commandAllocator));
 
-	//Load assets
+	// Load assets
 	// Create empty root signature
 	{
-		CD3DX12_ROOT_SIGNATURE_DESC rootSignatureDesc;
-		rootSignatureDesc.Init(0, nullptr, 0, nullptr, D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
+		D3D12_FEATURE_DATA_ROOT_SIGNATURE featureData = {};
+
+		// This is the highest version the sample supports. If CheckFeatureSupport succeeds, the HighestVersion returned will not be greater than this.
+		featureData.HighestVersion = D3D_ROOT_SIGNATURE_VERSION_1_1;
+
+		if (FAILED(device->CheckFeatureSupport(D3D12_FEATURE_ROOT_SIGNATURE, &featureData, sizeof(featureData))))
+		{
+			featureData.HighestVersion = D3D_ROOT_SIGNATURE_VERSION_1_0;
+		}
+
+		CD3DX12_VERSIONED_ROOT_SIGNATURE_DESC rootSignatureDesc;
+		rootSignatureDesc.Init_1_1(0, nullptr, 0, nullptr, D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
 
 		ComPtr<ID3DBlob> signature;
 		ComPtr<ID3DBlob> error;
 
-		check(D3D12SerializeRootSignature(&rootSignatureDesc, D3D_ROOT_SIGNATURE_VERSION_1, &signature, &error));
+		check(D3DX12SerializeVersionedRootSignature(&rootSignatureDesc, featureData.HighestVersion, &signature, &error));
 		check(device->CreateRootSignature(0, 
 										  signature->GetBufferPointer(),
 										  signature->GetBufferSize(),

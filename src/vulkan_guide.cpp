@@ -1,4 +1,4 @@
-﻿#if 0
+﻿#if 1
 
 #include <assert.h>
 
@@ -397,7 +397,7 @@ bool Mesh::loadFromGLTF(const char* file)
 	std::string warn;
 
 	bool ret = loader.LoadASCIIFromFile(&model, &err, &warn, file);
-	//bool ret = loader.LoadBinaryFromFile(&model, &err, &warn, argv[1]); // for binary glTF(.glb)
+	//bool ret = loader.LoadBinaryFromFile(&model, &err, &warn, file); // for binary glTF(.glb)
 
 	if (!warn.empty()) {
 		printf("Warn: %s\n", warn.c_str());
@@ -845,8 +845,8 @@ void Init(GLFWwindow* window)
 
 	auto instanceResult = instanceBuilder.set_app_name("Vulkan")
 		.request_validation_layers(true)
-		.require_api_version(1, 2, 0)
-		.desire_api_version(1, 2, 0)
+		.require_api_version(1, 3, 0)
+		.desire_api_version(1, 3, 0)
 		.set_debug_messenger_severity(VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT)
 		.set_debug_messenger_type(VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT)
 		.set_debug_callback(debugCallback)
@@ -1367,7 +1367,7 @@ void Init(GLFWwindow* window)
 	triangleMesh.vertices[2].color = { 0.0f, 0.0f, 1.0f };
 
 	monkeyMesh.loadFromObj("assets/knot.obj", "assets/");
-	//monkeyMesh.loadFromGLTF("assets/gas_stations_fixed/scene.gltf");
+	//monkeyMesh.loadFromGLTF("E:\\Eden\\EdenApple\\assets\\Suzanne\\Suzanne.gltf");
 
 	// Upload mesh
 	VkBufferCreateInfo stagingBufferInfo = {};
